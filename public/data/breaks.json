@@ -1,0 +1,499 @@
+{
+  "account": "PWM-4471",
+  "breaks": [
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US67066G1040,NVDA,2026-05-18,SPLIT,4,1,,,,NVIDIA Corporation 4-for-1 common stock split",
+          "file": "corporate_actions_2026Q2.csv",
+          "line": 5
+        },
+        {
+          "excerpt": "US67066G1040   NVIDIA CORPORATION                      800,000       452,60      USD    362.080,00       334.561,92",
+          "file": "bhp_vermoegensausweis_2026-03-31.txt",
+          "line": 17
+        },
+        {
+          "excerpt": "US67066G1040   NVIDIA CORPORATION                      800,000       118,90      USD    95.120,00        87.225,04",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 17
+        }
+      ],
+      "custodian": "Banque Helvetique Privee",
+      "detail": {
+        "action": "4-for-1 split",
+        "booked_transactions": "0",
+        "description": "NVIDIA Corporation 4-for-1 common stock split",
+        "ex_date": "2026-05-18",
+        "expected_quantity": "3,200",
+        "opening_quantity": "800",
+        "reported_quantity": "800",
+        "unapplied_quantity": "2,400",
+        "value_at_risk": "USD 285,360.00"
+      },
+      "isin": "US67066G1040",
+      "kind": "CORP_ACTION_UNAPPLIED",
+      "narrative": "A 4-for-1 split in NVIDIA Corporation went ex on 2026-05-18. Banque Helvetique Privee has not applied it: the position still reads 800 units where 3,200 are due, leaving 2,400 units unaccounted for at USD 285,360.00. No corresponding booking appears in the activity file. The action is confirmed independently by the reference feed, so this is not an inference from the custodians disagreeing \u2014 it is one custodian being demonstrably behind. Sources: corporate_actions_2026Q2.csv:5, bhp_vermoegensausweis_2026-03-31.txt:17, bhp_vermoegensausweis_2026-06-30.txt:17.",
+      "proposed_fix": "Escalate to Banque Helvetique Privee corporate actions and request the adjustment be booked with the correct ex-date. Suppress client reporting for this holding until it is applied \u2014 valuation, performance and any percentage-of-portfolio figure derived from it are all wrong in the meantime.",
+      "security": "NVIDIA Corporation",
+      "severity": "critical",
+      "value_at_risk": "285360.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US67066G1040   NVIDIA CORPORATION                      800,000       118,90      USD    95.120,00        87.225,04",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 17
+        },
+        {
+          "excerpt": "NVDA,67066G104,NVIDIA CORPORATION,\"3,200.000\",\"118.90\",\"380,480.00\",\"210,400.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 11
+        }
+      ],
+      "custodian": "Banque Helvetique Privee vs Meridian Securities",
+      "detail": {
+        "custodian_a": "Banque Helvetique Privee",
+        "custodian_b": "Meridian Securities",
+        "difference": "-2,400",
+        "note": "difference is exactly 4:1, consistent with an unapplied corporate action",
+        "quantity_a": "800",
+        "quantity_b": "3,200",
+        "ratio_between_custodians": "4:1",
+        "value_at_risk": "USD 285,360.00"
+      },
+      "isin": "US67066G1040",
+      "kind": "CROSS_CUSTODIAN_QTY",
+      "narrative": "Banque Helvetique Privee and Meridian Securities disagree on NVIDIA Corporation: 800 units against 3,200, a difference of -2,400 worth USD 285,360.00. Both statements carry the same as-of date, so one of them is wrong. Sources: bhp_vermoegensausweis_2026-06-30.txt:17, meridian_positions_2026-06-30.csv:11. The two counts stand in a ratio of exactly 4:1, which is what an unapplied corporate action looks like \u2014 see the corporate action finding on the same security.",
+      "proposed_fix": "Reconcile against the transfer agent or depository record before either figure is used. Do not average them and do not adopt the larger \u2014 a consolidated report built on the wrong side of this is wrong in the client's favour or the firm's, and both are reportable.",
+      "security": "NVIDIA Corporation",
+      "severity": "critical",
+      "value_at_risk": "285360.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US88160R1014   TESLA INC.                              2.400,000     271,30      USD    651.120,00       597.077,04",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 23
+        },
+        {
+          "excerpt": "TSLA,88160R101,TESLA INC.,\"400.000\",\"271.30\",\"108,520.00\",\"92,600.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 15
+        }
+      ],
+      "custodian": "Banque Helvetique Privee vs Meridian Securities",
+      "detail": {
+        "custodian_a": "Banque Helvetique Privee",
+        "custodian_b": "Meridian Securities",
+        "difference": "2,000",
+        "note": "difference is exactly 6:1, consistent with an unapplied corporate action",
+        "quantity_a": "2,400",
+        "quantity_b": "400",
+        "ratio_between_custodians": "6:1",
+        "value_at_risk": "USD 542,600.00"
+      },
+      "isin": "US88160R1014",
+      "kind": "CROSS_CUSTODIAN_QTY",
+      "narrative": "Banque Helvetique Privee and Meridian Securities disagree on Tesla Inc.: 2,400 units against 400, a difference of 2,000 worth USD 542,600.00. Both statements carry the same as-of date, so one of them is wrong. Sources: bhp_vermoegensausweis_2026-06-30.txt:23, meridian_positions_2026-06-30.csv:15. The two counts stand in a ratio of exactly 6:1, which is what an unapplied corporate action looks like \u2014 see the corporate action finding on the same security.",
+      "proposed_fix": "Reconcile against the transfer agent or depository record before either figure is used. Do not average them and do not adopt the larger \u2014 a consolidated report built on the wrong side of this is wrong in the client's favour or the firm's, and both are reportable.",
+      "security": "Tesla Inc.",
+      "severity": "critical",
+      "value_at_risk": "542600.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US00SPACEX19,SPCX,2026-06-12,MERGER,2,1,US88160R1014,,,Space Exploration Technologies Corp. merged into Tesla Inc.; 2 TSLA per SPCX",
+          "file": "corporate_actions_2026Q2.csv",
+          "line": 8
+        },
+        {
+          "excerpt": "SPCX,00SPACEX1,SPACE EXPLORATION TECHNOLOGIES CORP.,\"1,000.000\",\"145.80\",\"145,800.00\",\"118,000.00\",USD",
+          "file": "meridian_positions_2026-03-31.csv",
+          "line": 16
+        },
+        {
+          "excerpt": "TSLA,88160R101,TESLA INC.,\"400.000\",\"268.50\",\"107,400.00\",\"92,600.00\",USD",
+          "file": "meridian_positions_2026-03-31.csv",
+          "line": 15
+        },
+        {
+          "excerpt": "TSLA,88160R101,TESLA INC.,\"400.000\",\"271.30\",\"108,520.00\",\"92,600.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 15
+        },
+        {
+          "excerpt": "06/12/2026,06/12/2026,SPCX,00SPACEX1,MERGER,\"(1,000.000)\",\"0.00\",\"0.00\",USD,MERGER SPCX INTO TSLA 2-FOR-1",
+          "file": "meridian_transactions_2026Q2.csv",
+          "line": 12
+        }
+      ],
+      "custodian": "Meridian Securities",
+      "detail": {
+        "acquirer": "Tesla Inc. (US88160R1014)",
+        "action": "merger (2-for-1 exchange)",
+        "description": "Space Exploration Technologies Corp. merged into Tesla Inc.; 2 TSLA per SPCX",
+        "ex_date": "2026-06-12",
+        "exchange_ratio": "2-for-1",
+        "expected_acquirer_quantity": "2,400",
+        "leg_failed": "acquirer shares never credited",
+        "reported_acquirer_quantity": "400",
+        "shares_due": "2,000",
+        "shares_missing": "2,000",
+        "target": "Space Exploration Technologies Corp. (US00SPACEX19)",
+        "target_quantity_held": "1,000",
+        "value_at_risk": "USD 542,600.00"
+      },
+      "isin": "US88160R1014",
+      "kind": "MERGER_UNPROCESSED",
+      "narrative": "Space Exploration Technologies Corp. (US00SPACEX19) merged on 2026-06-12 \u2014 2-for-1. Meridian Securities holds 1,000 of the target and is due 2,000 shares of Tesla Inc. (US88160R1014), but the position reads 400 where 2,400 are expected. Acquirer shares never credited. 2,000 shares worth USD 542,600.00 have simply gone missing from the client's holdings, and nothing else in the reconciliation can see it: the position file and the activity file agree with each other, because both are missing the same leg. Sources: corporate_actions_2026Q2.csv:8, meridian_positions_2026-03-31.csv:16, meridian_positions_2026-03-31.csv:15 (+2 more).",
+      "proposed_fix": "Raise a corporate-actions query with Meridian Securities citing the reference-feed record and the exchange ratio, and request the entitlement be booked with the correct effective date. Until it is, the account is understated and every performance and allocation figure derived from it is wrong \u2014 do not release client reporting for this portfolio.",
+      "security": "Tesla Inc.",
+      "severity": "critical",
+      "value_at_risk": "542600.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "AAPL,037833100,APPLE INC.,\"1,200.000\",\"214.35\",\"257,220.00\",\"189,240.00\",USD",
+          "file": "meridian_positions_2026-03-31.csv",
+          "line": 10
+        },
+        {
+          "excerpt": "AAPL,037833100,APPLE INC.,\"1,300.000\",\"238.90\",\"310,570.00\",\"217,416.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 10
+        },
+        {
+          "excerpt": "05/12/2026,05/14/2026,AAPL,037833100,BUY,\"300.000\",\"231.40\",\"(69,420.00)\",USD,BOUGHT 300 AAPL",
+          "file": "meridian_transactions_2026Q2.csv",
+          "line": 8
+        },
+        {
+          "excerpt": "06/09/2026,06/11/2026,AAPL,037833100,SELL,\"200.000\",\"239.30\",\"47,860.00\",USD,SOLD 200 AAPL",
+          "file": "meridian_transactions_2026Q2.csv",
+          "line": 11
+        },
+        {
+          "excerpt": "06/15/2026,06/15/2026,AAPL,037833100,DIV,\"0.000\",\"0.00\",\"325.00\",USD,QUALIFIED DIVIDEND AAPL",
+          "file": "meridian_transactions_2026Q2.csv",
+          "line": 13
+        }
+      ],
+      "custodian": "Meridian Securities",
+      "detail": {
+        "basis_drift": "USD -6,756.00",
+        "drift_pct": "-3.0138",
+        "expected_cost_basis": "USD 224,172.00",
+        "method": "weighted-average unit cost (no tax lots supplied)",
+        "opening_cost_basis": "USD 189,240.00",
+        "reported_cost_basis": "USD 217,416.00",
+        "transactions_applied": "3",
+        "value_at_risk": "USD -6,756.00"
+      },
+      "isin": "US0378331005",
+      "kind": "COST_BASIS_DRIFT",
+      "narrative": "Meridian Securities reports cost basis of USD 217,416.00 for Apple Inc. Rolling the opening basis of USD 189,240.00 forward through the period's activity on weighted-average unit cost (no tax lots supplied) gives USD 224,172.00 \u2014 a difference of USD -6,756.00 (-3.0138%). Sources: meridian_positions_2026-03-31.csv:10, meridian_positions_2026-06-30.csv:10, meridian_transactions_2026Q2.csv:8 (+2 more).",
+      "proposed_fix": "Request tax-lot detail from Meridian Securities and re-run the comparison lot by lot; the recomputation above uses weighted-average because no lots were supplied, and a genuine lot-level difference would explain part of the gap. Anything left after that is a basis error and affects realised gain on the next sale.",
+      "security": "Apple Inc.",
+      "severity": "high",
+      "value_at_risk": "-6756.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US92857W3088   VODAFONE GROUP PLC ADR                  5.000,000     12,05       USD    60.250,00        55.249,25",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 19
+        },
+        {
+          "excerpt": "VOD,92857W308,VODAFONE GROUP PLC ADR,\"4,400.000\",\"12.05\",\"53,020.00\",\"52,300.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 13
+        }
+      ],
+      "custodian": "Banque Helvetique Privee vs Meridian Securities",
+      "detail": {
+        "custodian_a": "Banque Helvetique Privee",
+        "custodian_b": "Meridian Securities",
+        "difference": "600",
+        "quantity_a": "5,000",
+        "quantity_b": "4,400",
+        "value_at_risk": "USD 7,230.00"
+      },
+      "isin": "US92857W3088",
+      "kind": "CROSS_CUSTODIAN_QTY",
+      "narrative": "Banque Helvetique Privee and Meridian Securities disagree on Vodafone Group plc ADR: 5,000 units against 4,400, a difference of 600 worth USD 7,230.00. Both statements carry the same as-of date, so one of them is wrong. Sources: bhp_vermoegensausweis_2026-06-30.txt:19, meridian_positions_2026-06-30.csv:13.",
+      "proposed_fix": "Reconcile against the transfer agent or depository record before either figure is used. Do not average them and do not adopt the larger \u2014 a consolidated report built on the wrong side of this is wrong in the client's favour or the firm's, and both are reportable.",
+      "security": "Vodafone Group plc ADR",
+      "severity": "high",
+      "value_at_risk": "7230.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "USD/EUR   0,9170",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 11
+        },
+        {
+          "excerpt": "US0378331005   APPLE INC.                              1.300,000     238,90      USD    310.570,00       277.649,58",
+          "file": "bhp_vermoegensausweis_2026-06-30.txt",
+          "line": 16
+        }
+      ],
+      "custodian": "Banque Helvetique Privee",
+      "detail": {
+        "expected_base_value": "EUR 284,792.69",
+        "implied_rate": "0.894000",
+        "local_value": "USD 310,570.00",
+        "pair": "USD/EUR",
+        "quoted_rate": "0.9170",
+        "rate_drift_pct": "-2.5082",
+        "reported_base_value": "EUR 277,649.58",
+        "value_at_risk": "EUR -7,143.11"
+      },
+      "isin": "US0378331005",
+      "kind": "FX_INCONSISTENT",
+      "narrative": "The Banque Helvetique Privee statement quotes USD/EUR at 0.9170, but this line converts USD 310,570.00 to EUR 277,649.58 \u2014 an implied rate of 0.894000, off by -2.5082%. The document disagrees with itself, and the base-currency figure is overstated or understated by EUR -7,143.11. Sources: bhp_vermoegensausweis_2026-06-30.txt:11, bhp_vermoegensausweis_2026-06-30.txt:16.",
+      "proposed_fix": "Recompute the base-currency column at the quoted rate before this reaches consolidated reporting. Ask Banque Helvetique Privee which rate is authoritative and on what timestamp \u2014 if the line is right and the header is wrong, every other converted position on the statement is affected.",
+      "security": "Apple Inc.",
+      "severity": "high",
+      "value_at_risk": "-7143.11",
+      "value_ccy": "EUR"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "VOD,92857W308,VODAFONE GROUP PLC ADR,\"5,000.000\",\"11.42\",\"57,100.00\",\"52,300.00\",USD",
+          "file": "meridian_positions_2026-03-31.csv",
+          "line": 13
+        },
+        {
+          "excerpt": "VOD,92857W308,VODAFONE GROUP PLC ADR,\"4,400.000\",\"12.05\",\"53,020.00\",\"52,300.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 13
+        }
+      ],
+      "custodian": "Meridian Securities",
+      "detail": {
+        "expected_quantity": "5,000",
+        "opening_quantity": "5,000",
+        "reported_quantity": "4,400",
+        "transaction_delta": "0",
+        "transactions_seen": "0",
+        "unexplained_quantity": "-600",
+        "value_at_risk": "USD 7,230.00"
+      },
+      "isin": "US92857W3088",
+      "kind": "QTY_ROLLFORWARD",
+      "narrative": "Vodafone Group plc ADR at Meridian Securities opened the period at 5,000 units and closed at 4,400, but the transaction file explains a movement of only 0. That leaves -600 units \u2014 USD 7,230.00 \u2014 with no booking behind them. Either a trade was never delivered into the activity feed, or the position file was adjusted outside it. Sources: meridian_positions_2026-03-31.csv:13, meridian_positions_2026-06-30.csv:13.",
+      "proposed_fix": "Ask Meridian Securities for the activity detail covering this position for the full period, including cancel-and-corrects and any non-trade adjustments. If no booking exists, the position file is wrong and the holding must not be reported to the client until it is restated.",
+      "security": "Vodafone Group plc ADR",
+      "severity": "high",
+      "value_at_risk": "7230.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "US30303M1027,META,2026-05-05,NAME_CHANGE,1,1,,FB,META,Facebook Inc. renamed Meta Platforms Inc.; ticker FB changed to META",
+          "file": "corporate_actions_2026Q2.csv",
+          "line": 7
+        },
+        {
+          "excerpt": "FB,30303M102,FACEBOOK INC,\"600.000\",\"548.70\",\"329,220.00\",\"214,800.00\",USD",
+          "file": "meridian_positions_2026-06-30.csv",
+          "line": 14
+        }
+      ],
+      "custodian": "Meridian Securities",
+      "detail": {
+        "current_symbol": "META",
+        "description": "Facebook Inc. renamed Meta Platforms Inc.; ticker FB changed to META",
+        "effective_date": "2026-05-05",
+        "identifier_used_to_match": "CUSIP 30303M102",
+        "position_reconciles": "yes - quantity, price and cost basis all agree",
+        "position_value": "USD 329,220.00",
+        "reported_symbol": "FB",
+        "value_at_risk": "USD 329,220.00"
+      },
+      "isin": "US30303M1027",
+      "kind": "IDENTIFIER_STALE",
+      "narrative": "Meridian Securities is still reporting Meta Platforms Inc. under the ticker FB. It became META on 2026-05-05. The position itself is correct \u2014 yes - quantity, price and cost basis all agree \u2014 because the line was matched on CUSIP 30303M102 rather than on the ticker, and the identifier did not change. Nothing is misstated. What is stale is the security master, and a ticker is how two systems agree they are discussing the same instrument. Tickers are reissued to unrelated companies, and on the day this one is, the match stops being harmless. Sources: corporate_actions_2026Q2.csv:7, meridian_positions_2026-06-30.csv:14.",
+      "proposed_fix": "Ask Meridian Securities when their security master was last refreshed against the reference feed. Treat the answer as the finding: a ticker four weeks stale usually means unapplied corporate actions are sitting behind it, and those do move money. Confirm any downstream system that matches on ticker rather than ISIN or CUSIP.",
+      "security": "Meta Platforms Inc.",
+      "severity": "medium",
+      "value_at_risk": "329220.00",
+      "value_ccy": "USD"
+    },
+    {
+      "account": "PWM-4471",
+      "as_of": "2026-06-30",
+      "citations": [
+        {
+          "excerpt": "03/31/2026,03/31/2026,,,FEE,\"0.000\",\"0.00\",\"(4,287.50)\",USD,MANAGEMENT FEE Q1 2026",
+          "file": "meridian_transactions_2026Q1.csv",
+          "line": 9
+        }
+      ],
+      "custodian": "Meridian Securities",
+      "detail": {
+        "current_period_fees": "0",
+        "expected_amount": "USD 4,287.50",
+        "prior_period_amount": "USD 4,287.50",
+        "prior_period_fees": "1",
+        "value_at_risk": "USD 4,287.50"
+      },
+      "isin": "",
+      "kind": "MISSING_FEE_ACCRUAL",
+      "narrative": "Meridian Securities charged USD 4,287.50 in management fees in the prior period and nothing in this one. Nothing has failed and no balance is out \u2014 the fee is simply absent, which is why an absence has to be looked for on purpose rather than found by comparing figures. Sources: meridian_transactions_2026Q1.csv:9.",
+      "proposed_fix": "Confirm with billing whether the fee was waived, deferred, or missed. If missed, raise the accrual in the current period rather than the next \u2014 a fee booked a quarter late distorts both periods' performance and the client will see it.",
+      "security": "(account-level)",
+      "severity": "medium",
+      "value_at_risk": "4287.50",
+      "value_ccy": "USD"
+    }
+  ],
+  "coverage": {
+    "corporate_actions_examined": 4,
+    "instruments_clean": [
+      {
+        "isin": "DE0007164600",
+        "name": "SAP SE"
+      },
+      {
+        "isin": "NL0010273215",
+        "name": "ASML Holding N.V."
+      },
+      {
+        "isin": "US00SPACEX19",
+        "name": "Space Exploration Technologies Corp."
+      },
+      {
+        "isin": "US5949181045",
+        "name": "Microsoft Corporation"
+      }
+    ],
+    "instruments_examined": 9,
+    "positions_examined": 14,
+    "rules_run": [
+      {
+        "checks": "Opening quantity plus every booked movement must equal closing quantity.",
+        "kind": "QTY_ROLLFORWARD"
+      },
+      {
+        "checks": "A holding that left the statement must be accounted for by the activity file.",
+        "kind": "POSITION_DISAPPEARED"
+      },
+      {
+        "checks": "Every corporate action in the reference feed must be applied by every custodian.",
+        "kind": "CORP_ACTION_UNAPPLIED"
+      },
+      {
+        "checks": "An applied action must move the share count by the declared ratio.",
+        "kind": "CORP_ACTION_WRONG_RATIO"
+      },
+      {
+        "checks": "A split divides basis per share and leaves the total unchanged.",
+        "kind": "CORP_ACTION_BASIS_CORRUPTED"
+      },
+      {
+        "checks": "Both legs of a merger must be processed: target removed, acquirer credited.",
+        "kind": "MERGER_UNPROCESSED"
+      },
+      {
+        "checks": "A custodian must not report a security under a superseded ticker.",
+        "kind": "IDENTIFIER_STALE"
+      },
+      {
+        "checks": "A statement's converted values must agree with the rates it prints.",
+        "kind": "FX_INCONSISTENT"
+      },
+      {
+        "checks": "Cost basis rolled through the period's activity must match what is reported.",
+        "kind": "COST_BASIS_DRIFT"
+      },
+      {
+        "checks": "Two custodians reporting one mandate must report the same share count.",
+        "kind": "CROSS_CUSTODIAN_QTY"
+      },
+      {
+        "checks": "Two custodians must price the same instrument alike on the same date.",
+        "kind": "PRICE_DIVERGENCE"
+      },
+      {
+        "checks": "A fee charged in the prior period must recur or be explained.",
+        "kind": "MISSING_FEE_ACCRUAL"
+      }
+    ],
+    "transactions_examined": 15
+  },
+  "custodians": [
+    {
+      "account": "PWM-4471",
+      "base_currency": "EUR",
+      "name": "Banque Helvetique Privee",
+      "positions": 8,
+      "reports_cost_basis": false,
+      "source_file": "bhp_vermoegensausweis_2026-06-30.txt",
+      "transactions": 8
+    },
+    {
+      "account": "PWM-4471",
+      "base_currency": "USD",
+      "name": "Meridian Securities",
+      "positions": 6,
+      "reports_cost_basis": true,
+      "source_file": "meridian_positions_2026-06-30.csv",
+      "transactions": 7
+    }
+  ],
+  "generated_at": "2026-08-06T13:49:53+00:00",
+  "period": {
+    "current": "2026-06-30",
+    "prior": "2026-03-31"
+  },
+  "summary": {
+    "by_severity": {
+      "critical": 4,
+      "high": 4,
+      "low": 0,
+      "medium": 2
+    },
+    "exposure_by_currency": {
+      "EUR": "EUR 7,143.11",
+      "USD": "USD 2,010,643.50"
+    },
+    "narrative_fallbacks": 0,
+    "narrative_source": "template",
+    "total_breaks": 10
+  }
+}
