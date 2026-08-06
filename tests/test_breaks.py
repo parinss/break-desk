@@ -20,6 +20,8 @@ from _util import (
     AAPL,
     ACCOUNT,
     ASML,
+    BASIS_SETTLED,
+    BASIS_TRADE,
     CURRENT,
     CUST_A,
     CUST_B,
@@ -44,6 +46,7 @@ import breaks
 from breaks import (
     RULES,
     detect_all,
+    detect_basis_mismatch,
     detect_corp_actions,
     detect_cost_basis_drift,
     detect_cross_custodian_qty,
@@ -54,6 +57,7 @@ from breaks import (
     detect_position_disappeared,
     detect_price_divergence,
     detect_qty_rollforward,
+    in_flight_qty,
     roll_cost_basis,
     severity_for,
 )
@@ -545,6 +549,170 @@ class TestCrossCustodianQty(unittest.TestCase):
         self.assertEqual(found, [])
 
 
+class TestStatementBasis(unittest.TestCase):
+    """
+    Two custodians, one mandate, different statement bases.
+
+    The expensive case in the whole suite. A trade-date statement counts a trade
+    when it is executed; a settled-date one counts it when the shares move.
+    Between them sits every trade in flight over the period end — and the naive
+    difference is real, large, and not a break.
+    """
+
+    def setUp(self):
+        # 500 shares bought on 29 June, settling 2 July. Inside the trade-date
+        # book at 30 June, outside the settled one.
+        self.in_flight = txn(
+            AAPL, "BUY", qty="500", amount="-119450",
+            trade_date=date(2026, 6, 29), settle_date=date(2026, 7, 2),
+            custodian=CUST_B,
+        )
+        self.settled = snap(
+            [pos(AAPL, "1300", price="238.90")], custodian=CUST_A, basis=BASIS_SETTLED
+        )
+        self.traded = snap(
+            [pos(AAPL, "1800", price="238.90")], custodian=CUST_B, basis=BASIS_TRADE
+        )
+        self.txns = {CUST_B: [self.in_flight]}
+
+    # --- the silence this rule exists for ---
+
+    def test_a_difference_the_bases_fully_explain_is_not_a_break(self):
+        """
+        USD 119,450 apart on the largest holding in the book, and correctly
+        silent. This is the false positive that teaches an operations team to
+        stop reading the queue, so it is a required silence, not a nicety.
+        """
+        found = detect_cross_custodian_qty([self.settled, self.traded], self.txns)
+        self.assertEqual(found, [])
+
+    def test_the_residual_is_reported_when_the_bases_explain_only_part(self):
+        """
+        Netting the explained part is not the same as going quiet. A rule that
+        skipped the comparison whenever bases differed would fall silent on
+        exactly the custodian pair that most needs checking.
+        """
+        traded = snap(
+            [pos(AAPL, "1900", price="238.90")], custodian=CUST_B, basis=BASIS_TRADE
+        )
+        found = detect_cross_custodian_qty([self.settled, traded], self.txns)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].detail["difference"], "-100")
+        self.assertEqual(found[0].detail["reported_difference"], "-600")
+        self.assertEqual(found[0].detail["explained_by_settlement"], "-500")
+        self.assertEqual(found[0].value_at_risk, Decimal("23890.00"))
+
+    def test_direction_is_not_assumed(self):
+        """The same pair with the bases the other way round nets to zero too —
+        the sign of the adjustment follows which custodian reports trade date,
+        not which one was listed first."""
+        settled = snap(
+            [pos(AAPL, "1300", price="238.90")], custodian=CUST_B, basis=BASIS_SETTLED
+        )
+        traded = snap(
+            [pos(AAPL, "1800", price="238.90")], custodian=CUST_A, basis=BASIS_TRADE
+        )
+        flight = txn(
+            AAPL, "BUY", qty="500", trade_date=date(2026, 6, 29),
+            settle_date=date(2026, 7, 2), custodian=CUST_A,
+        )
+        self.assertEqual(
+            detect_cross_custodian_qty([settled, traded], {CUST_A: [flight]}), []
+        )
+
+    def test_a_settled_trade_explains_nothing(self):
+        """
+        Netting is driven by what is genuinely in flight, not by any trade near
+        the boundary. A trade that settled before the period end is in both
+        books, so the difference stands as a break.
+        """
+        settled_trade = txn(
+            AAPL, "BUY", qty="500", trade_date=date(2026, 6, 20),
+            settle_date=date(2026, 6, 24), custodian=CUST_B,
+        )
+        found = detect_cross_custodian_qty(
+            [self.settled, self.traded], {CUST_B: [settled_trade]}
+        )
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].detail["difference"], "-500")
+
+    def test_matching_bases_stay_exactly_as_strict_as_before(self):
+        """The regression that matters: teaching this rule about settlement must
+        not have loosened it for the ordinary same-basis case."""
+        both_settled = snap(
+            [pos(AAPL, "1800", price="238.90")], custodian=CUST_B, basis=BASIS_SETTLED
+        )
+        found = detect_cross_custodian_qty([self.settled, both_settled], self.txns)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].detail["difference"], "-500")
+        self.assertNotIn("explained_by_settlement", found[0].detail)
+
+    def test_no_transactions_supplied_means_nothing_is_explained_away(self):
+        """
+        Called without activity, the rule must not assume a difference is
+        settlement. Silence bought by an absent argument is the worst kind.
+        """
+        found = detect_cross_custodian_qty([self.settled, self.traded])
+        self.assertEqual(len(found), 1)
+
+    # --- the control finding ---
+
+    def test_the_mismatch_itself_is_reported(self):
+        found = detect_basis_mismatch([self.settled, self.traded], self.txns)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].kind, "STATEMENT_BASIS_MISMATCH")
+        self.assertEqual(found[0].isin, "", "this is an account-level control finding")
+        self.assertEqual(found[0].value_at_risk, Decimal("119450.00"))
+        self.assertEqual(found[0].detail["movements_in_flight"], "1")
+
+    def test_severity_is_capped_because_nothing_is_missing(self):
+        """USD 119,450 would band as critical on exposure alone. Nothing is
+        missing here — it is in flight — so it must not outrank a genuinely
+        absent half-million of stock."""
+        found = detect_basis_mismatch([self.settled, self.traded], self.txns)
+        self.assertEqual(found[0].severity, "medium")
+
+    def test_silent_when_every_custodian_reports_the_same_basis(self):
+        other = snap([pos(AAPL, "1300")], custodian=CUST_B, basis=BASIS_SETTLED)
+        self.assertEqual(detect_basis_mismatch([self.settled, other], self.txns), [])
+
+    def test_silent_for_a_single_custodian(self):
+        self.assertEqual(detect_basis_mismatch([self.traded], self.txns), [])
+
+    def test_it_cites_the_movements_it_counted(self):
+        """The reviewer must be able to get from the finding to the trade that
+        causes it without going looking."""
+        found = detect_basis_mismatch([self.settled, self.traded], self.txns)
+        self.assertEqual(
+            [c.cite() for c in found[0].citations], [self.in_flight.source.cite()]
+        )
+
+
+class TestInFlightQty(unittest.TestCase):
+    def test_nets_movements_in_both_directions(self):
+        txns = [
+            txn(AAPL, "BUY", qty="500", trade_date=date(2026, 6, 29),
+                settle_date=date(2026, 7, 2)),
+            txn(AAPL, "SELL", qty="-200", trade_date=date(2026, 6, 30),
+                settle_date=date(2026, 7, 2)),
+        ]
+        self.assertEqual(in_flight_qty(txns, AAPL, date(2026, 6, 30)), Decimal("300"))
+
+    def test_ignores_other_instruments(self):
+        txns = [txn(NVDA, "BUY", qty="500", trade_date=date(2026, 6, 29),
+                    settle_date=date(2026, 7, 2))]
+        self.assertEqual(in_flight_qty(txns, AAPL, date(2026, 6, 30)), Decimal("0"))
+
+    def test_a_movement_with_no_settlement_date_is_never_in_flight(self):
+        """
+        A split has no settlement date because it does not settle. Treating a
+        missing date as "settles later" would put a fictional corporate action
+        in flight across every period boundary it touched.
+        """
+        txns = [txn(AAPL, "SPLIT", qty="2400", trade_date=date(2026, 6, 29))]
+        self.assertEqual(in_flight_qty(txns, AAPL, date(2026, 6, 30)), Decimal("0"))
+
+
 class TestPriceDivergence(unittest.TestCase):
     """
     Silent on the demo data — both custodians price every shared holding
@@ -666,7 +834,7 @@ class TestPublishedRuleList(unittest.TestCase):
             "CORP_ACTION_WRONG_RATIO", "CORP_ACTION_BASIS_CORRUPTED",
             "MERGER_UNPROCESSED", "IDENTIFIER_STALE", "FX_INCONSISTENT",
             "COST_BASIS_DRIFT", "CROSS_CUSTODIAN_QTY", "PRICE_DIVERGENCE",
-            "MISSING_FEE_ACCRUAL",
+            "MISSING_FEE_ACCRUAL", "STATEMENT_BASIS_MISMATCH",
         }
         self.assertEqual(published, emitted)
 

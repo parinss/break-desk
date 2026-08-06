@@ -1,8 +1,9 @@
 # Break Desk
 
-Multi-custodian position reconciliation for wealth managers. Two custodians, two
-statement formats, two number locales, one quarter — and every figure in the
-output traceable to a file and a line number in a source document.
+Multi-custodian position reconciliation for wealth managers. Three custodians,
+three statement formats — a US CSV, a Swiss PDF extract and ISO 15022 SWIFT —
+three number locales, one quarter, and every figure in the output traceable to a
+file and a line number in a source document.
 
 **[Open the desk →](https://parinss.github.io/break-desk/)** — the live queue on
 the demo quarter. Pick any finding and it expands to the custodians' own lines.
@@ -24,12 +25,12 @@ system produces complete reports from templates.
 
 ## What it does
 
-A wealth manager running one mandate across two custodians gets two statements
+A wealth manager running one mandate across several custodians gets statements
 that disagree. Somebody reconciles them by hand every quarter. This finds the
 disagreements, prices them, ranks them by what is actually at risk, and shows
 the source line behind every number.
 
-On the demo period it reports **ten findings across nine instruments**:
+On the demo period it reports **eleven findings across nine instruments**:
 
 | Finding | Instrument | At risk |
 |---|---|---|
@@ -40,6 +41,7 @@ On the demo period it reports **ten findings across nine instruments**:
 | `FX_INCONSISTENT` | Apple | EUR 7,143.11 |
 | `QTY_ROLLFORWARD` | Vodafone | USD 7,230.00 |
 | `IDENTIFIER_STALE` | Meta (still printed as FB) | USD 329,220.00 |
+| `STATEMENT_BASIS_MISMATCH` | account level | USD 119,450.00 |
 | `MISSING_FEE_ACCRUAL` | account level | USD 4,287.50 |
 
 Four instruments are examined and reported clean, and **that half matters more**.
@@ -47,7 +49,7 @@ See "What it deliberately does not report" below.
 
 ---
 
-## The four things worth looking at
+## The five things worth looking at
 
 ### 1. Every figure carries its provenance
 
@@ -130,6 +132,29 @@ one. The first falls back; the second stops the run.
 reports.** The model is an upgrade to the prose, never a dependency of the
 finding.
 
+### 5. A third custodian was a parser, and nothing else
+
+`normalize.py` claims in its own docstring that adding a custodian means adding a
+parser and touching nothing else. Northgate is where that claim gets tested
+rather than asserted: ISO 15022 MT535 and MT536, a tree of `:16R:`/`:16S:` blocks
+rather than a table, fields keyed by tag and qualifier rather than by column,
+quantities as magnitudes with the direction in `:22H::REDE//`, and a third number
+convention where `1,800` means one point eight.
+
+Every cross-custodian detector already took a sequence of snapshots and compared
+them pairwise, so the third custodian needed no change to any of them. What it
+*did* need was one idea the other two never forced: **statement basis.**
+
+```
+:22F::STBA//TRAD
+```
+
+That single field is why Northgate reports 1,800 Apple shares and the others
+report 1,300, and why none of them is wrong. The quantity rule now measures the
+difference against what the bases predict and reports only the residual — it does
+not go quiet on mismatched pairs, which would silence exactly the comparison that
+most needs checking.
+
 ---
 
 ## What it deliberately does not report
@@ -139,11 +164,12 @@ switched off in a fortnight and the real break sails through in week three. Each
 rule is therefore tested twice — once that it fires, once that it stays silent on
 the neighbouring case that merely resembles it.
 
-Four required silences in the demo data:
+Five required silences in the demo data:
 
 - **Microsoft** was bought into *and* put through a 3-for-2 split in the same
-  quarter, correctly, at both custodians. A rule that pattern-matches "share
-  count changed near a corporate action" flags it. This one is load-bearing.
+  quarter, correctly, at all three custodians — in three different file formats,
+  on two different statement bases. A rule that pattern-matches "share count
+  changed near a corporate action" flags it. This one is load-bearing.
 - **SpaceX** vanished from both statements — correctly, having been merged out of
   existence. A naive "position disappeared" rule reports this twice, at
   critical, on a portfolio where nothing is wrong.
@@ -152,6 +178,17 @@ Four required silences in the demo data:
   finding.
 - **Meta's stale ticker** produces exactly one control finding and no phantom
   quantity break, because the line was matched on CUSIP.
+- **Apple across a trade-date and a settled-date statement.** Northgate reports
+  1,800 shares; the other two report 1,300. A 500-share, **USD 119,450**
+  disagreement on the largest holding in the book — and not a break. One trade,
+  executed 29 June and settling 2 July, is inside the trade-date statement and
+  outside the settled ones. All three custodians are correct.
+
+  This is the most expensive silence in the demo. A quantity rule that does not
+  know about statement basis reports a six-figure difference that nobody can
+  action, on the position an operations team looks at first. What the desk
+  reports instead is the thing that *is* wrong — the comparison — as a capped
+  control finding, with the netting shown on the face of it.
 
 Severity is computed from value at risk, never assigned per rule — with a cap for
 control findings where the whole position is notionally exposed but nothing is
@@ -195,8 +232,11 @@ holds the pipeline to it exactly — a missed break and an invented one are both
 failures, and in this domain the invented one is worse.
 
 The formats are modelled on real ones: a US custodian's CSV extract in
-`1,234.56` with accounting parentheses, and a Swiss bank's PDF text in
-`1.234,56` with German activity codes and columns held apart by runs of spaces.
+`1,234.56` with accounting parentheses; a Swiss bank's PDF text in `1.234,56`
+with German activity codes and columns held apart by runs of spaces; and ISO
+15022 SWIFT — MT535 holdings and MT536 movements — in `1800,`, where the decimal
+comma is mandatory, thousands separators are forbidden, and `1,800` means one
+point eight.
 
 ---
 
@@ -209,20 +249,20 @@ scripts/
   securities.py    ISIN / CUSIP / ticker crosswalk, including former tickers
   normalize.py     custodian statements in, canonical model out
   corpactions.py   corporate-action reasoning, testable with no files
-  breaks.py        twelve pure detectors
+  breaks.py        thirteen pure detectors
   explain.py       prose layer, with the containment enforced at runtime
   generate.py      synthetic statements + the manifest of seeded errors
   build.py         the pipeline
 serve.py           stdlib server on :8110/desk
 public/            two-pane console, no framework and no build step
-tests/             286 tests, stdlib unittest
+tests/             343 tests, stdlib unittest
 ```
 
 ## Tests
 
 ```
 $ python3 -m unittest discover -s tests
-Ran 286 tests in 3.1s
+Ran 343 tests in 3.2s
 OK
 ```
 

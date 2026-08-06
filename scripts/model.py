@@ -80,6 +80,23 @@ class Transaction:
     amount: Decimal
     ccy: str
     source: Provenance
+    # When the shares actually move. `None` means the custodian did not report it,
+    # which is not the same as same-day settlement — a corporate action genuinely
+    # has no settlement date, and guessing one for it would put a fictional trade
+    # in flight across every period boundary it touched.
+    #
+    # This is the field that makes trade-date and settled-date statements
+    # comparable. A trade dated inside the period that settles after it is in one
+    # basis and not the other, and the resulting quantity difference is not a
+    # break. See breaks.detect_cross_custodian_qty.
+    settle_date: Optional[date] = None
+
+    def in_flight_at(self, as_of):
+        # type: (date) -> bool
+        """Traded on or before `as_of`, settling strictly after it."""
+        if self.settle_date is None:
+            return False
+        return self.trade_date <= as_of < self.settle_date
 
 
 @dataclass(frozen=True)
@@ -168,6 +185,16 @@ class FxRate:
     source: Provenance
 
 
+# Statement basis — which event puts a trade into the holding.
+#   SETT  settled: the shares have moved. The custodian-of-record convention.
+#   TRAD  trade date: the trade is in as soon as it is executed.
+# Between the two sits everything traded but not yet settled, which is why two
+# correct statements of the same mandate on the same date can disagree.
+BASIS_SETTLED = "SETT"
+BASIS_TRADE = "TRAD"
+BASIS_LABEL = {BASIS_SETTLED: "settled date", BASIS_TRADE: "trade date"}
+
+
 @dataclass
 class Snapshot:
     """One custodian's view of one account on one date."""
@@ -176,8 +203,16 @@ class Snapshot:
     custodian: str
     account: str
     base_ccy: str
+    # Custodians that do not state a basis are settled — that is the convention a
+    # statement is read under when it says nothing, and assuming otherwise would
+    # invent an in-flight adjustment on every feed that simply omits the field.
+    basis: str = BASIS_SETTLED
     positions: List[Position] = field(default_factory=list)
     fx_rates: List[FxRate] = field(default_factory=list)
+
+    def basis_label(self):
+        # type: () -> str
+        return BASIS_LABEL.get(self.basis, self.basis)
 
     def by_isin(self):
         # type: () -> Dict[str, Position]

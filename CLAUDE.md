@@ -1,15 +1,16 @@
 # Break Desk — working notes
 
-Multi-custodian position reconciliation. Two custodian statement formats, two
-number locales, one quarter, and every figure in the output traceable to a file
-and a line number in a source document.
+Multi-custodian position reconciliation. Three custodian statement formats (US
+CSV, Swiss PDF text, ISO 15022 SWIFT), three number locales, one quarter, and
+every figure in the output traceable to a file and a line number in a source
+document.
 
 ```
 python3 scripts/generate.py            # write the synthetic statements
 python3 scripts/build.py               # reconcile -> public/data/breaks.json
 python3 scripts/build.py --no-llm      # same, templates only
 python3 serve.py                       # http://localhost:8110/desk/
-python3 -m unittest discover -s tests  # 286 tests
+python3 -m unittest discover -s tests  # 343 tests
 ```
 
 `scripts/` and the repo root go on `sys.path`, so modules import by their own
@@ -64,17 +65,24 @@ Every rule is tested twice — that it fires, and that it stays **silent** on th
 neighbouring case that merely resembles it. A desk that flags everything gets
 switched off in a fortnight and the real break sails through in week three.
 
-The four silences the demo data exists to prove, all load-bearing:
+The five silences the demo data exists to prove, all load-bearing:
 
 - **Microsoft** — bought into *and* 3-for-2 split in the same quarter, correctly,
-  at both custodians. Anything pattern-matching "share count moved near a
-  corporate action" flags it.
+  at all three custodians, in three formats, on two statement bases. Anything
+  pattern-matching "share count moved near a corporate action" flags it.
 - **SpaceX** — gone from both statements, correctly, having been merged out of
   existence. A naive position-disappeared rule reports it twice at critical.
 - **ASML, SAP** — EUR holdings in a EUR statement. No conversion to be wrong
   about; inventing a 1.0000 rate would be inventing a finding.
 - **Meta** — one control finding for the stale ticker and no phantom quantity
   break, because the line matched on CUSIP.
+- **Apple across statement bases** — the expensive one. Northgate reports 1,800
+  on a trade-date basis, the others 1,300 on settled. USD 119,450 apart on the
+  largest holding, and not a break: one trade dated 29 June settles 2 July. The
+  quantity rule nets what the bases explain and reports only the residual; it
+  does not go quiet on mismatched pairs, which would silence the comparison that
+  most needs checking. `STATEMENT_BASIS_MISMATCH` reports the real problem — the
+  comparison — capped, because nothing is missing, it is in flight.
 
 Ratio inference uses an **allowlist of ratios issuers actually declare**, not a
 bounds check. Vodafone's 5,000 -> 4,400 reduces to a tidy 22:25, which a "both
@@ -90,8 +98,29 @@ repository, ever** — not in a fixture, not in a test, not in a screenshot.
 holds the pipeline to exactly: a missed break and an invented one are both
 failures, and the invented one is worse.
 
+## ISO 15022
+
+MT535 (holdings) and MT536 (movements), parsed in `normalize.py`. The block
+grammar is a stack machine: unbalanced or mismatched `:16R:`/`:16S:` raises,
+because a dropped close re-parents every block after it and silently moves a
+holding into another instrument's sub-balance rather than failing.
+
+Things this parser refuses rather than guesses: a quantity typed `FAMT` (a bond's
+notional, not a unit count, and the denomination needed to convert it is not in
+the message); a price typed `PRCT`; a `:22F::TRAN//CORP` movement with no
+`:22F::CAEV//` event code, since a split and a merger allocation reconcile
+against different things; a holding priced in one currency and valued in another;
+and `:17B::ACTI//N` alongside a `STAT` block, so a truncated download cannot read
+as a quiet quarter.
+
+`parse_swift_decimal` is the strictest of the three number parsers. `1800` is
+refused — the comma is mandatory — and `1,800` is **one point eight**. That last
+one is why the strictness is not pedantry: the same string is an ordinary US
+number meaning something a thousand times larger, and no tolerance catches a
+three-order-of-magnitude misreading.
+
 ## Not built yet
 
-ISO 15022 ingest (MT535/536/548/564), SSI/PSET mismatch priced in CSDR penalty
-EUR, and the 23:00 CET allocation-timing test. Deliberately deferred until the
-existing path was finished end to end.
+MT548 (settlement status) and MT564 (corporate action notification). SSI/PSET
+mismatch priced in CSDR penalty EUR — `:94F::SAFE//NCSD/` already carries the
+place of safekeeping, so the field is there when the rule is written.

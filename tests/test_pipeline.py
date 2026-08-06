@@ -114,9 +114,11 @@ class TestReportShape(PipelineFixture):
         self.assertEqual(self.on_disk["period"],
                          {"prior": "2026-03-31", "current": "2026-06-30"})
 
-    def test_both_custodians_are_described(self):
+    def test_every_custodian_is_described(self):
         names = sorted(c["name"] for c in self.on_disk["custodians"])
-        self.assertEqual(names, sorted([normalize.BHP, normalize.MERIDIAN]))
+        self.assertEqual(
+            names, sorted([normalize.BHP, normalize.MERIDIAN, normalize.NORTHGATE])
+        )
 
     def test_the_custodian_that_reports_no_basis_says_so(self):
         by_name = dict((c["name"], c) for c in self.on_disk["custodians"])

@@ -12,11 +12,15 @@ at the bottom of this file, which is the contract the integration test asserts
 against (tests/test_pipeline.py). If a detector stops finding one of these, or
 starts finding something not on the list, the test fails.
 
-Two custodians, deliberately dissimilar — because a reconciliation engine that
-only works when both sides look alike has not solved the problem:
+Three custodians, deliberately dissimilar — because a reconciliation engine that
+only works when every side looks alike has not solved the problem:
 
   Meridian Securities LLC   US brokerage    CSV     1,300.000  238.90  06/30/2026
   Banque Helvetique Privee  CH booking ctr  PDF-txt 1.300,000  238,90  30.06.2026
+  Northgate Trust Company   global custody  MT535   1800,      238,90  20260630
+
+Northgate also reports on a trade-date basis where the other two report settled,
+which is the one difference that makes two correct statements disagree.
 
 Run:  python3 scripts/generate.py
 """
@@ -38,6 +42,13 @@ ACCOUNT = "PWM-4471"
 
 MERIDIAN = "Meridian Securities"
 BHP = "Banque Helvetique Privee"
+NORTHGATE = "Northgate Trust Company"
+
+# Invented, and deliberately unmistakable. ZZ is user-assigned in ISO 3166-1 and
+# will never be issued to a country, so neither of these BICs can collide with a
+# real institution's — the same reasoning as the SpaceX ISIN in securities.py.
+NORTHGATE_BIC = "NRTGZZ00XXX"
+NORTHGATE_PSET = "CSDXZZ00XXX"
 
 # --- security master ---------------------------------------------------------
 # Sourced from scripts/securities.py, which the parsers also use. Custodians
@@ -198,6 +209,160 @@ BHP_TXNS = {
 }
 
 
+# --- Northgate: ISO 15022 ----------------------------------------------------
+#
+# The third custodian sends SWIFT rather than a file a human was meant to read,
+# and reports on a **trade-date** basis where the other two report settled. That
+# one field, :22F::STBA//, is the whole reason this custodian is here.
+#
+# On 29 June the mandate bought 500 AAPL, settling 2 July. Northgate's holding
+# includes them; Meridian's and BHP's do not. All three statements are correct.
+# A quantity rule that does not know about statement basis sees a 500-share,
+# USD 119,450 disagreement and reports it — and that false positive, on a figure
+# that large, is exactly the one that gets a desk switched off.
+
+# isin, quantity, price, market_value  (SWIFT numbers: comma decimal, no
+# thousands separator, and the comma is mandatory even on a whole number)
+NORTHGATE_POSITIONS = {
+    PRIOR: [
+        ("US0378331005", "1200,", "214,35", "257220,"),
+        ("US5949181045", "450,", "498,20", "224190,"),
+    ],
+    CURRENT: [
+        # 1,300 settled, plus the 500 traded on 29 June that settle on 2 July.
+        # On a trade-date basis they are already in the holding.
+        ("US0378331005", "1800,", "238,90", "430020,"),
+        # 450 + 50 bought + 250 from the 3-for-2. The same answer as both other
+        # custodians, on a different basis, through a different message format —
+        # so the third custodian is a silence here, not a finding.
+        ("US5949181045", "750,", "341,60", "256200,"),
+    ],
+}
+
+# trade_date, settle_date, isin, receive/deliver, quantity, amount, tran type
+NORTHGATE_TXNS = {
+    # No securities movements at all in Q1. An MT536 for a quarter with nothing
+    # in it is not an empty file — it is a message that says so, with
+    # :17B::ACTI//N and no statement block. The parser has to read that as
+    # "reported, none" rather than "nothing reported".
+    "2026Q1": [],
+    "2026Q2": [
+        ("20260422", "20260424", "US5949181045", "RECE", "50,", "25265,", "TRAD"),
+        ("20260512", "20260514", "US0378331005", "RECE", "300,", "69420,", "TRAD"),
+        # CORP carries its event code. Without :22F::CAEV// a parser would have
+        # to guess whether a corporate-action movement was a split or a merger
+        # allocation, and guessing is the thing this codebase does not do.
+        ("20260602", "20260602", "US5949181045", "RECE", "250,", "0,", "CORP:SPLF"),
+        ("20260609", "20260611", "US0378331005", "DELI", "200,", "47860,", "TRAD"),
+        # Traded inside the quarter, settling outside it. This single row is what
+        # makes Northgate's 1,800 and Meridian's 1,300 both right.
+        ("20260629", "20260702", "US0378331005", "RECE", "500,", "119450,", "TRAD"),
+    ],
+}
+
+
+def _swift_envelope(msg_type, as_of, body):
+    # type: (str, str, list) -> str
+    """Wrap a message body in the block structure a SWIFT file arrives in."""
+    stamp = as_of[2:4] + as_of[5:7] + as_of[8:10]
+    lines = [
+        "{1:F01%sX0000000000}" % NORTHGATE_BIC,
+        "{2:O%s0915%s%sX%s0915N}" % (msg_type, stamp, NORTHGATE_BIC, stamp),
+        "{4:",
+    ]
+    lines.extend(body)
+    lines.append("-}")
+    return "\n".join(lines) + "\n"
+
+
+def northgate_mt535(as_of):
+    # type: (str) -> str
+    """MT535 Statement of Holdings."""
+    d = as_of.replace("-", "")
+    body = [
+        ":16R:GENL",
+        ":28E:1/ONLY",
+        ":20C::SEME//NGT535%s" % d,
+        ":23G:NEWM",
+        ":98A::STAT//%s" % d,
+        ":22F::SFRE//QUTR",
+        ":22F::CODE//COMP",
+        ":22F::STTY//CUST",
+        # The field this custodian exists to carry.
+        ":22F::STBA//TRAD",
+        ":97A::SAFE//%s" % ACCOUNT,
+        ":17B::ACTI//Y",
+        ":16S:GENL",
+    ]
+    for isin, qty, price, mv in NORTHGATE_POSITIONS[as_of]:
+        body.extend([
+            ":16R:FIN",
+            # :35B: is a multi-line field: the identifier, then free-text
+            # description lines that carry no tag of their own.
+            ":35B:ISIN %s" % isin,
+            NAME_BY_ISIN[isin],
+            ":93B::AGGR//UNIT/%s" % qty,
+            ":16R:SUBBAL",
+            ":93C::TAVI//UNIT/%s" % qty,
+            ":94F::SAFE//NCSD/%s" % NORTHGATE_PSET,
+            ":16S:SUBBAL",
+            ":16R:PRIC",
+            ":90B::MRKT//ACTU/USD%s" % price,
+            ":16S:PRIC",
+            ":19A::HOLD//USD%s" % mv,
+            ":16S:FIN",
+        ])
+    body.extend([":16R:ADDINFO", ":19A::HOLP//USD0,", ":16S:ADDINFO"])
+    return _swift_envelope("535", as_of, body)
+
+
+def northgate_mt536(period):
+    # type: (str) -> str
+    """MT536 Statement of Transactions."""
+    end = CURRENT if period == "2026Q2" else PRIOR
+    start = "2026-04-01" if period == "2026Q2" else "2026-01-01"
+    rows = NORTHGATE_TXNS[period]
+    body = [
+        ":16R:GENL",
+        ":28E:1/ONLY",
+        ":20C::SEME//NGT536%s" % period,
+        ":23G:NEWM",
+        ":98A::STAT//%s" % end.replace("-", ""),
+        ":69A::STAT//%s/%s" % (start.replace("-", ""), end.replace("-", "")),
+        ":22F::SFRE//QUTR",
+        ":22F::CODE//COMP",
+        ":97A::SAFE//%s" % ACCOUNT,
+        ":17B::ACTI//%s" % ("Y" if rows else "N"),
+        ":16S:GENL",
+    ]
+    if rows:
+        body.append(":16R:STAT")
+        for isin in sorted(set(r[2] for r in rows)):
+            body.extend([":16R:FIN", ":35B:ISIN %s" % isin, NAME_BY_ISIN[isin]])
+            for i, (td, sd, row_isin, rede, qty, amount, tran) in enumerate(rows):
+                if row_isin != isin:
+                    continue
+                body.extend([
+                    ":16R:TRAN",
+                    ":16R:LINK",
+                    ":20C::RELA//NGT%s%04d" % (period, i + 1),
+                    ":16S:LINK",
+                    # RECE and DELI are how ISO 15022 carries direction. There is
+                    # no signed quantity to read: :36B: is always a magnitude.
+                    ":22H::REDE//%s" % rede,
+                    ":22F::TRAN//%s" % tran.split(":")[0],
+                ] + ([":22F::CAEV//%s" % tran.split(":")[1]] if ":" in tran else []) + [
+                    ":98A::TRAD//%s" % td,
+                    ":98A::SETT//%s" % sd,
+                    ":36B::PSTA//UNIT/%s" % qty,
+                    ":19A::PSTA//USD%s" % amount,
+                    ":16S:TRAN",
+                ])
+            body.append(":16S:FIN")
+        body.append(":16S:STAT")
+    return _swift_envelope("536", end, body)
+
+
 def _cols(values, widths):
     # type: (list, list) -> str
     """Left-align into fixed columns, guaranteeing >=2 spaces between fields.
@@ -349,6 +514,10 @@ FILES = [
     ("bhp_vermoegensausweis_2026-06-30.txt", lambda: bhp_positions_txt(CURRENT)),
     ("bhp_bewegungen_2026Q1.txt", lambda: bhp_transactions_txt("2026Q1")),
     ("bhp_bewegungen_2026Q2.txt", lambda: bhp_transactions_txt("2026Q2")),
+    ("northgate_mt535_2026-03-31.txt", lambda: northgate_mt535(PRIOR)),
+    ("northgate_mt535_2026-06-30.txt", lambda: northgate_mt535(CURRENT)),
+    ("northgate_mt536_2026Q1.txt", lambda: northgate_mt536("2026Q1")),
+    ("northgate_mt536_2026Q2.txt", lambda: northgate_mt536("2026Q2")),
 ]
 
 
@@ -386,6 +555,10 @@ EXPECTED_BREAKS = [
     # META: ticker still printed as FB. Nothing is misstated; severity capped.
     ("IDENTIFIER_STALE", "US30303M1027", "medium"),
     ("MISSING_FEE_ACCRUAL", "", "medium"),
+    # Northgate reports on a trade-date basis, the other two on settled. Every
+    # statement is correct; the comparison between them is not. Capped for the
+    # same reason as the stale ticker — nothing is missing, it is in flight.
+    ("STATEMENT_BASIS_MISMATCH", "", "medium"),
 ]
 
 # Positions that must produce NO break. Half of a detector's value is its silence
@@ -417,6 +590,16 @@ EXPECTED_NOT_RAISED = [
     ("CROSS_CUSTODIAN_QTY", "US30303M1027"),    # stale ticker, identical quantities
     ("FX_INCONSISTENT", "NL0010273215"),        # EUR holding in a EUR statement
     ("COST_BASIS_DRIFT", "US88160R1014"),       # basis internally consistent at Meridian
+    # AAPL is the expensive silence. Northgate reports 1,800 and the other two
+    # report 1,300 — a 500-share, USD 119,450 disagreement that is entirely
+    # accounted for by one trade dated 29 June and settling 2 July. Reporting it
+    # would be a six-figure false positive on the largest holding in the book,
+    # which is exactly the finding that teaches a desk to stop reading the queue.
+    ("CROSS_CUSTODIAN_QTY", "US0378331005"),
+    # And Northgate must not drag MSFT into a break either: a third custodian, a
+    # third message format, a different basis, same 750 shares.
+    ("CROSS_CUSTODIAN_QTY", "US5949181045"),
+    ("PRICE_DIVERGENCE", "US0378331005"),
 ]
 
 

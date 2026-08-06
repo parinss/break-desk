@@ -163,6 +163,57 @@ class TestFormatting(unittest.TestCase):
         self.assertEqual(parse_us_decimal(fmt_money(original, "USD")), original)
 
 
+class TestSwiftNumbers(unittest.TestCase):
+    """
+    ISO 15022 field format: comma decimal, no thousands separator, and the comma
+    is mandatory. The strictness is the feature — see the last test in the class.
+    """
+
+    def test_whole_numbers_carry_a_trailing_comma(self):
+        self.assertEqual(money.parse_swift_decimal("1800,"), Decimal("1800"))
+        self.assertEqual(money.parse_swift_decimal("0,"), Decimal("0"))
+
+    def test_fractions(self):
+        self.assertEqual(money.parse_swift_decimal("238,90"), Decimal("238.90"))
+        self.assertEqual(money.parse_swift_decimal("0,001"), Decimal("0.001"))
+
+    def test_a_missing_comma_is_refused(self):
+        """`1800` is not a well-formed SWIFT amount, and accepting it would mean
+        accepting output from something that does not know the format."""
+        self.assertRaises(ParseError, money.parse_swift_decimal, "1800")
+
+    def test_thousands_separators_are_refused(self):
+        for raw in ("1.800,00", "1,800.00", "1 800,00"):
+            self.assertRaises(ParseError, money.parse_swift_decimal, raw)
+
+    def test_signs_and_blanks_are_refused(self):
+        for raw in ("-1800,", "", "   ", None, "USD1800,", "1800,,"):
+            self.assertRaises(ParseError, money.parse_swift_decimal, raw)
+
+    def test_a_comma_is_a_decimal_point_and_this_is_the_trap(self):
+        """
+        `1,800` is one point eight. It is *not* one thousand eight hundred.
+
+        This is the single most dangerous string in the format, because it is
+        also a perfectly ordinary US number meaning something 1,000x larger. A
+        parser that "helpfully" accepted both conventions would read a serialiser
+        bug as a position, and the two readings are three orders of magnitude
+        apart. There is no tolerance that catches that; only refusing to guess
+        does.
+        """
+        self.assertEqual(money.parse_swift_decimal("1,800"), Decimal("1.800"))
+        self.assertNotEqual(money.parse_swift_decimal("1,800"), Decimal("1800"))
+
+
+class TestSwiftDates(unittest.TestCase):
+    def test_yyyymmdd(self):
+        self.assertEqual(money.parse_swift_date("20260630"), date(2026, 6, 30))
+
+    def test_separators_are_refused(self):
+        for raw in ("2026-06-30", "30.06.2026", "06/30/2026", "260630"):
+            self.assertRaises(ParseError, money.parse_swift_date, raw)
+
+
 class TestConstants(unittest.TestCase):
     def test_precision_constants_are_decimals(self):
         for const in (money.QTY_DP, money.MONEY_DP, money.RATE_DP, money.ZERO):

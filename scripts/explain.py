@@ -322,6 +322,23 @@ def _template(brk):
             "valuation policy, and that needs a documented decision, not a fix.",
         )
 
+    if k == "STATEMENT_BASIS_MISMATCH":
+        return (
+            "The custodians on this mandate do not report on the same statement "
+            "basis: %s. %s movements worth %s were traded before the period end "
+            "and settle after it, so they sit inside one set of statements and "
+            "outside the other. Every statement is correct; the comparison "
+            "between them is what is not. Sources: %s."
+            % (_d(brk, "bases_reported"), _d(brk, "movements_in_flight"),
+               _d(brk, "value_in_flight"), _cites(brk)),
+            "Nothing needs correcting at a custodian. Fix the comparison: agree "
+            "one basis for the mandate and request statements on it, or keep the "
+            "netting and make it explicit in the pack. The exposure here is that "
+            "the netting depends on settlement dates being reported — the day a "
+            "feed stops carrying them, this reappears as a six-figure quantity "
+            "break with nothing to explain it.",
+        )
+
     if k == "MISSING_FEE_ACCRUAL":
         return (
             "%s charged %s in management fees in the prior period and nothing in "

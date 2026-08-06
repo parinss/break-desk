@@ -28,6 +28,8 @@ for _p in (SCRIPTS, ROOT):
         sys.path.insert(0, _p)
 
 from model import (  # noqa: E402
+    BASIS_SETTLED,
+    BASIS_TRADE,
     Break,
     CorporateAction,
     FxRate,
@@ -94,10 +96,11 @@ def pos(isin, qty, price="100.00", as_of=CURRENT, custodian=CUST_A, ccy="USD",
 
 
 def txn(isin, kind, qty="0", amount="0", trade_date=MID, custodian=CUST_A,
-        ccy="USD", account=ACCOUNT, source=None):
+        ccy="USD", account=ACCOUNT, source=None, settle_date=None):
     # type: (...) -> Transaction
     return Transaction(
         trade_date=trade_date,
+        settle_date=settle_date,
         custodian=custodian,
         account=account,
         isin=isin,
@@ -127,13 +130,14 @@ def action(isin, kind="SPLIT", num=4, den=1, ex_date=MID, related="",
 
 
 def snap(positions, as_of=CURRENT, custodian=CUST_A, base_ccy="USD",
-         account=ACCOUNT, fx_rates=None):
+         account=ACCOUNT, fx_rates=None, basis=BASIS_SETTLED):
     # type: (...) -> Snapshot
     return Snapshot(
         as_of=as_of,
         custodian=custodian,
         account=account,
         base_ccy=base_ccy,
+        basis=basis,
         positions=list(positions),
         fx_rates=list(fx_rates or []),
     )

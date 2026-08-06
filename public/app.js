@@ -36,6 +36,9 @@ var DETAIL_ORDER = [
   'quoted_rate', 'implied_rate',
   'custodian_a', 'custodian_b', 'quantity_a', 'quantity_b',
   'ratio_between_custodians',
+  'bases_reported', 'basis_a', 'basis_b',
+  'movements_in_flight', 'value_in_flight',
+  'reported_difference', 'explained_by_settlement',
   'reported_symbol', 'current_symbol', 'identifier_used_to_match',
   'prior_period_fees', 'current_period_fees', 'prior_period_amount',
   'transaction_delta', 'unapplied_quantity', 'unexplained_quantity',
@@ -48,7 +51,7 @@ var DETAIL_ORDER = [
 var GAP_KEYS = {
   unapplied_quantity: 1, unexplained_quantity: 1, shares_missing: 1,
   difference: 1, basis_drift: 1, drift_pct: 1, rate_drift_pct: 1,
-  transaction_delta: 1
+  transaction_delta: 1, value_in_flight: 1
 };
 
 var state = { report: null, filter: 'all', shown: [], current: -1 };

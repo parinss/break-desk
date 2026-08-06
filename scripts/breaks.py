@@ -28,7 +28,14 @@ from typing import Dict, List, Optional, Sequence
 
 import corpactions
 import securities
-from model import Break, CorporateAction, Position, Snapshot, Transaction
+from model import (
+    BASIS_TRADE,
+    Break,
+    CorporateAction,
+    Position,
+    Snapshot,
+    Transaction,
+)
 from money import ZERO, fmt_money, fmt_qty, pct_diff, q_money, q_qty, q_rate
 
 # Value-at-risk bands, in the account's base currency. Exposed as module state so
@@ -69,7 +76,10 @@ RULES = [
     ("COST_BASIS_DRIFT",
      "Cost basis rolled through the period's activity must match what is reported."),
     ("CROSS_CUSTODIAN_QTY",
-     "Two custodians reporting one mandate must report the same share count."),
+     "Two custodians reporting one mandate must report the same share count, "
+     "once both are put on the same statement basis."),
+    ("STATEMENT_BASIS_MISMATCH",
+     "Custodians reporting one mandate must be compared on one statement basis."),
     ("PRICE_DIVERGENCE",
      "Two custodians must price the same instrument alike on the same date."),
     ("MISSING_FEE_ACCRUAL",
@@ -601,29 +611,90 @@ def detect_cost_basis_drift(prior, current, txns):
 # --- 5. cross-custodian agreement --------------------------------------------
 
 
-def detect_cross_custodian_qty(snapshots):
-    # type: (Sequence[Snapshot]) -> List[Break]
+def in_flight_qty(txns, isin, as_of):
+    # type: (Sequence[Transaction], str, object) -> Decimal
     """
-    Two custodians reporting the same mandate must report the same share count.
+    Net share movement traded on or before `as_of` and settling after it.
+
+    This is the quantity that a trade-date statement carries and a settled-date
+    one does not, which is the entire difference between two correct statements
+    of the same mandate on the same day.
+    """
+    total = ZERO
+    for txn in txns:
+        if txn.isin == isin and txn.in_flight_at(as_of):
+            total += txn.quantity
+    return total
+
+
+def _basis_expected_gap(a, b, txns_by_custodian):
+    # type: (tuple, tuple, Dict[str, Sequence[Transaction]]) -> Decimal
+    """
+    How far apart two holdings *should* be, given the statements' bases.
+
+    Each side is a (position, basis, custodian) triple taken from the statement
+    it arrived on. Zero when both are on the same basis, which is the ordinary
+    case and the one that must stay exactly as strict as it was before this rule
+    learned about settlement.
+    """
+    pos_a, basis_a, name_a = a
+    pos_b, basis_b, name_b = b
+    if basis_a == basis_b:
+        return ZERO
+    # The unsettled trades are recorded by whichever custodian reports on a trade
+    # date basis — the settled-basis custodian will not book them until they
+    # settle, in a period that has not closed yet.
+    if basis_a == BASIS_TRADE:
+        return in_flight_qty(txns_by_custodian.get(name_a, []), pos_a.isin, pos_a.as_of)
+    return -in_flight_qty(txns_by_custodian.get(name_b, []), pos_b.isin, pos_b.as_of)
+
+
+def detect_cross_custodian_qty(snapshots, txns_by_custodian=None):
+    # type: (Sequence[Snapshot], Optional[Dict[str, Sequence[Transaction]]]) -> List[Break]
+    """
+    Two custodians reporting the same mandate must report the same share count —
+    once both counts have been put on the same statement basis.
 
     Only instruments held at two or more custodians are compared. A holding that
     exists at one custodian and not the other is not a disagreement — it is a
     single-custodian position, and the demo's ASML and SAP are exactly that.
+
+    ## Why this rule knows about settlement
+
+    A trade-date statement counts a trade the moment it is executed; a
+    settled-date one counts it when the shares move. Between the two sits every
+    trade in flight over the period end. Both statements are right, and the naive
+    difference between them is real, large, and not a break.
+
+    So the difference is measured against what the bases predict, and only the
+    residual is reported. A rule that skipped the comparison entirely whenever
+    bases differed would be worse than this one: it would go quiet on precisely
+    the custodian pair that most needs checking.
     """
+    txns_by_custodian = txns_by_custodian or {}
     out = []
-    index = {}  # type: Dict[str, List[Position]]
+    # Basis belongs to the statement, not to the holding, and Position is frozen
+    # and should stay that way — so it is paired with each holding as it is
+    # indexed. Looking it up later by `pos.custodian` would work right up until a
+    # caller built a snapshot whose positions were labelled with something else,
+    # and then it would silently compare two trade-date books as though both were
+    # settled. Carrying it is one word longer and cannot drift.
+    index = {}  # type: Dict[str, List[tuple]]
     for snap in snapshots:
         for pos in snap.positions:
-            index.setdefault(pos.isin, []).append(pos)
+            index.setdefault(pos.isin, []).append((pos, snap.basis, snap.custodian))
 
     for isin, holdings in sorted(index.items()):
         if len(holdings) < 2:
             continue
-        holdings = sorted(holdings, key=lambda p: p.custodian)
+        holdings = sorted(holdings, key=lambda h: h[2])
         for i in range(len(holdings) - 1):
             for j in range(i + 1, len(holdings)):
-                a, b = holdings[i], holdings[j]
-                gap = q_qty(a.quantity - b.quantity)
+                side_a, side_b = holdings[i], holdings[j]
+                (a, basis_a, name_a), (b, basis_b, name_b) = side_a, side_b
+                raw_gap = q_qty(a.quantity - b.quantity)
+                expected = q_qty(_basis_expected_gap(side_a, side_b, txns_by_custodian))
+                gap = q_qty(raw_gap - expected)
                 if abs(gap) <= QTY_TOLERANCE:
                     continue
 
@@ -631,13 +702,21 @@ def detect_cross_custodian_qty(snapshots):
                 exposure = abs(gap) * price
                 ratio = corpactions.infer_ratio(min(a.quantity, b.quantity), max(a.quantity, b.quantity))
                 detail = {
-                    "custodian_a": a.custodian,
+                    "custodian_a": name_a,
                     "quantity_a": fmt_qty(a.quantity),
-                    "custodian_b": b.custodian,
+                    "custodian_b": name_b,
                     "quantity_b": fmt_qty(b.quantity),
                     "difference": fmt_qty(gap),
                     "value_at_risk": fmt_money(exposure, a.ccy),
                 }
+                if expected != ZERO:
+                    # The reviewer is looking at two numbers that differ by more
+                    # than the finding claims. Say why, on the finding itself,
+                    # rather than leaving them to rediscover it.
+                    detail["reported_difference"] = fmt_qty(raw_gap)
+                    detail["explained_by_settlement"] = fmt_qty(expected)
+                    detail["basis_a"] = basis_a
+                    detail["basis_b"] = basis_b
                 # A clean split ratio between the two is a strong hint, but only a
                 # hint — it is recorded as context, never as the finding itself.
                 # The reference-backed rule above is what makes the claim.
@@ -654,7 +733,7 @@ def detect_cross_custodian_qty(snapshots):
                         severity=severity_for(exposure),
                         isin=isin,
                         security=_name(isin),
-                        custodian="%s vs %s" % (a.custodian, b.custodian),
+                        custodian="%s vs %s" % (name_a, name_b),
                         account=a.account,
                         as_of=a.as_of,
                         detail=detail,
@@ -664,6 +743,71 @@ def detect_cross_custodian_qty(snapshots):
                     )
                 )
     return out
+
+
+def detect_basis_mismatch(snapshots, txns_by_custodian=None):
+    # type: (Sequence[Snapshot], Optional[Dict[str, Sequence[Transaction]]]) -> List[Break]
+    """
+    Custodians reporting one mandate must be compared on one statement basis.
+
+    This is a control finding, not a misstatement: every statement involved is
+    correct on its own terms. What is wrong is the comparison, and it is wrong
+    silently — the quantity rule above knows how to net the difference out, but
+    only because the settlement dates happened to be reported. A feed that
+    stopped carrying :98A::SETT// would leave the same difference looking like a
+    six-figure break with nothing to explain it.
+
+    Severity is capped for the same reason as a stale ticker: the exposure is
+    notional. Nothing here is missing — it is in flight.
+    """
+    txns_by_custodian = txns_by_custodian or {}
+    bases = {}  # type: Dict[str, List[str]]
+    for snap in snapshots:
+        bases.setdefault(snap.basis, []).append(snap.custodian)
+    if len(bases) < 2:
+        return []
+
+    as_of = min(s.as_of for s in snapshots)
+    account = snapshots[0].account if snapshots else ""
+
+    # The exposure is the cash value of what is in flight, taken from the
+    # movements themselves rather than from a position line — the whole point is
+    # that these shares are not on a position line anywhere yet.
+    exposure = ZERO
+    ccy = ""
+    citations = []
+    for snap in snapshots:
+        if snap.basis != BASIS_TRADE:
+            continue
+        for txn in txns_by_custodian.get(snap.custodian, []):
+            if not txn.in_flight_at(snap.as_of):
+                continue
+            exposure += abs(txn.amount)
+            ccy = ccy or txn.ccy
+            citations.append(txn.source)
+
+    detail = {
+        "bases_reported": ", ".join(
+            "%s (%s)" % (b, ", ".join(sorted(c))) for b, c in sorted(bases.items())
+        ),
+        "movements_in_flight": str(len(citations)),
+        "value_in_flight": fmt_money(exposure, ccy) if ccy else "none",
+    }
+    return [
+        Break(
+            kind="STATEMENT_BASIS_MISMATCH",
+            severity=_capped_severity(exposure, "medium"),
+            isin="",
+            security=_name(""),
+            custodian=", ".join(sorted(s.custodian for s in snapshots)),
+            account=account,
+            as_of=as_of,
+            detail=detail,
+            citations=citations,
+            value_at_risk=q_money(exposure),
+            value_ccy=ccy,
+        )
+    ]
 
 
 def detect_price_divergence(snapshots):
@@ -805,7 +949,8 @@ def detect_all(period):
         )
 
     snapshots = [current[c] for c in sorted(current.keys())]
-    found.extend(detect_cross_custodian_qty(snapshots))
+    found.extend(detect_cross_custodian_qty(snapshots, txns_current))
+    found.extend(detect_basis_mismatch(snapshots, txns_current))
     found.extend(detect_price_divergence(snapshots))
 
     return _sorted(found)

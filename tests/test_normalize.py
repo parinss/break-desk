@@ -33,12 +33,15 @@ from money import ParseError
 from normalize import (
     BHP,
     MERIDIAN,
+    NORTHGATE,
     load_period,
     parse_bhp_positions,
     parse_bhp_transactions,
     parse_corporate_actions,
     parse_meridian_positions,
     parse_meridian_transactions,
+    parse_mt535,
+    parse_mt536,
 )
 
 
@@ -382,17 +385,358 @@ class TestLoadPeriod(StatementsFixture):
             ["actions", "current", "prior", "txns_current", "txns_prior"],
         )
 
-    def test_both_custodians_on_both_dates(self):
+    def test_every_custodian_on_both_dates(self):
         for side in ("prior", "current"):
-            self.assertEqual(sorted(self.period[side]), sorted([BHP, MERIDIAN]))
+            self.assertEqual(
+                sorted(self.period[side]), sorted([BHP, MERIDIAN, NORTHGATE])
+            )
 
     def test_downstream_never_needs_to_know_the_source_format(self):
-        """The contract of this module: two locales in, one model out."""
+        """The contract of this module: three locales in, one model out."""
         for snapshot in list(self.period["prior"].values()) + list(self.period["current"].values()):
             for p in snapshot.positions:
                 self.assertIsInstance(p.quantity, Decimal)
                 self.assertIsInstance(p.price, Decimal)
                 self.assertTrue(normalize.ISIN_RE.match(p.isin))
+
+
+# --- ISO 15022 ---------------------------------------------------------------
+
+
+MT535_MINIMAL = "\n".join([
+    "{1:F01NRTGZZ00XXXX0000000000}",
+    "{2:O5350915260630NRTGZZ00XXXX2606300915N}",
+    "{4:",
+    ":16R:GENL",
+    ":20C::SEME//TEST535",
+    ":23G:NEWM",
+    ":98A::STAT//20260630",
+    ":22F::STBA//TRAD",
+    ":97A::SAFE//PWM-4471",
+    ":17B::ACTI//Y",
+    ":16S:GENL",
+    ":16R:FIN",
+    ":35B:ISIN US0378331005",
+    "APPLE INC.",
+    ":93B::AGGR//UNIT/1800,",
+    ":16R:PRIC",
+    ":90B::MRKT//ACTU/USD238,90",
+    ":16S:PRIC",
+    ":19A::HOLD//USD430020,",
+    ":16S:FIN",
+    "-}",
+    "",
+])
+
+
+class SwiftFixture(unittest.TestCase):
+    """Writes a message to a temp file so the parser is exercised through its
+    real entry point — the one that opens a file and reports a line number."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="swift-")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def write(self, text, name="mt535.txt"):
+        # type: (str, str) -> str
+        path = os.path.join(self.dir, name)
+        with io.open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return path
+
+    def mutate(self, old, new, name="mt535.txt", source=MT535_MINIMAL):
+        # type: (str, str, str, str) -> str
+        self.assertIn(old, source, "fixture does not contain %r" % old)
+        return self.write(source.replace(old, new, 1), name)
+
+
+class TestMT535(SwiftFixture):
+    def snapshot(self):
+        return parse_mt535(self.write(MT535_MINIMAL))
+
+    def test_header_fields(self):
+        snap = self.snapshot()
+        self.assertEqual(snap.custodian, NORTHGATE)
+        self.assertEqual(snap.account, "PWM-4471")
+        self.assertEqual(snap.as_of, date(2026, 6, 30))
+
+    def test_the_statement_basis_is_read_not_assumed(self):
+        self.assertEqual(self.snapshot().basis, "TRAD")
+
+    def test_a_message_with_no_basis_is_settled(self):
+        """
+        The convention a statement is read under when it says nothing. Assuming
+        trade date instead would invent an in-flight adjustment against every
+        feed that simply omits the field.
+        """
+        path = self.mutate(":22F::STBA//TRAD\n", "")
+        self.assertEqual(parse_mt535(path).basis, "SETT")
+
+    def test_an_unknown_basis_is_refused(self):
+        path = self.mutate(":22F::STBA//TRAD", ":22F::STBA//XXXX")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_position_figures(self):
+        p = self.snapshot().positions[0]
+        self.assertEqual(p.isin, AAPL)
+        self.assertEqual(p.quantity, Decimal("1800"))
+        self.assertEqual(p.price, Decimal("238.90"))
+        self.assertEqual(p.market_value, Decimal("430020"))
+        self.assertEqual(p.ccy, "USD")
+
+    def test_no_cost_basis_is_none_and_not_zero(self):
+        """Same rule as BHP: a custodian that does not report basis must not be
+        read as reporting a basis of zero."""
+        self.assertIsNone(self.snapshot().positions[0].cost_basis)
+
+    def test_there_is_no_ticker_to_be_stale(self):
+        """Identification is by ISIN throughout, so the identifier rule has
+        nothing to report — and must not invent something from the description
+        line, which is free text and often carries a former name."""
+        self.assertEqual(self.snapshot().positions[0].reported_symbol, "")
+
+    def test_provenance_points_at_the_quantity_line(self):
+        p = self.snapshot().positions[0]
+        with io.open(os.path.join(self.dir, "mt535.txt"), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        self.assertEqual(lines[p.source.line - 1], p.source.excerpt)
+        self.assertIn("93B", p.source.excerpt)
+
+    # --- the block grammar ---
+
+    def test_an_unclosed_block_is_refused(self):
+        """A dropped :16S: re-parents every block after it, which silently moves
+        a holding into another instrument rather than failing."""
+        path = self.mutate(":16S:PRIC\n", "")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_mismatched_close_is_refused(self):
+        path = self.mutate(":16S:PRIC", ":16S:SUBBAL")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_close_with_nothing_open_is_refused(self):
+        path = self.mutate(":16R:GENL\n", "")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_continuation_line_with_no_field_is_refused(self):
+        path = self.mutate(":16R:FIN\n", ":16R:FIN\nORPHAN TEXT\n")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_missing_body_block_is_refused(self):
+        path = self.write(MT535_MINIMAL.replace("{4:", "{5:"))
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_nested_blocks_do_not_leak_fields_to_the_parent(self):
+        """
+        :90B: lives inside PRIC. If block scoping were flat, a lookup on the FIN
+        block would find it anyway and the nesting would be decorative.
+        """
+        root = normalize._swift_blocks(MT535_MINIMAL.splitlines(), "mt535.txt")
+        fin = root.blocks("FIN")[0]
+        self.assertIsNone(normalize._swift_field(fin, "90B", "MRKT", "x", required=False))
+        self.assertIsNotNone(
+            normalize._swift_field(fin.blocks("PRIC")[0], "90B", "MRKT", "x")
+        )
+
+    # --- fields that must not be guessed at ---
+
+    def test_a_face_amount_is_not_a_share_count(self):
+        """
+        FAMT is a bond's notional. Reading it as units overstates the holding by
+        orders of magnitude, and the denomination needed to convert it is not in
+        this message — so it is refused rather than approximated.
+        """
+        path = self.mutate("UNIT/1800,", "FAMT/1800,")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_percentage_price_is_not_an_amount(self):
+        path = self.mutate("ACTU/USD238,90", "PRCT/USD238,90")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_pricing_and_valuation_currencies_must_agree(self):
+        path = self.mutate(":19A::HOLD//USD430020,", ":19A::HOLD//EUR430020,")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_an_unmapped_isin_is_refused(self):
+        path = self.mutate("US0378331005", "US9999999999")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_malformed_isin_is_refused(self):
+        path = self.mutate(":35B:ISIN US0378331005", ":35B:ISIN NOTANISIN")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_35b_without_an_isin_is_refused(self):
+        path = self.mutate(":35B:ISIN US0378331005", ":35B:/US/037833100")
+        self.assertRaises(ParseError, parse_mt535, path)
+
+    def test_a_missing_required_field_names_the_field(self):
+        path = self.mutate(":98A::STAT//20260630\n", "")
+        with self.assertRaises(ParseError) as caught:
+            parse_mt535(path)
+        self.assertIn("98A", str(caught.exception))
+        self.assertIn("STAT", str(caught.exception))
+
+
+MT536_HEAD = "\n".join([
+    "{1:F01NRTGZZ00XXXX0000000000}",
+    "{2:O5360915260630NRTGZZ00XXXX2606300915N}",
+    "{4:",
+    ":16R:GENL",
+    ":20C::SEME//TEST536",
+    ":23G:NEWM",
+    ":98A::STAT//20260630",
+    ":97A::SAFE//PWM-4471",
+    ":17B::ACTI//%s",
+    ":16S:GENL",
+])
+
+MT536_TRAN = "\n".join([
+    ":16R:STAT",
+    ":16R:FIN",
+    ":35B:ISIN US0378331005",
+    "APPLE INC.",
+    ":16R:TRAN",
+    ":22H::REDE//%s",
+    ":22F::TRAN//%s",
+    ":98A::TRAD//20260629",
+    ":98A::SETT//20260702",
+    ":36B::PSTA//UNIT/500,",
+    ":19A::PSTA//USD119450,",
+    ":16S:TRAN",
+    ":16S:FIN",
+    ":16S:STAT",
+])
+
+
+def mt536(rede="RECE", tran="TRAD", activity="Y", body=None):
+    # type: (str, str, str, str) -> str
+    parts = [MT536_HEAD % activity]
+    if body is None and activity == "Y":
+        body = MT536_TRAN % (rede, tran)
+    if body:
+        parts.append(body)
+    parts.append("-}")
+    return "\n".join(parts) + "\n"
+
+
+class TestMT536(SwiftFixture):
+    def parse(self, **kw):
+        return parse_mt536(self.write(mt536(**kw), name="mt536.txt"))
+
+    def test_a_receive_is_a_buy_and_the_cash_goes_the_other_way(self):
+        """
+        :36B: is always a magnitude — direction lives in :22H::REDE//. The
+        canonical model wants a signed delta *and* a signed cash flow, and they
+        point opposite ways: shares received cost money.
+        """
+        t = self.parse(rede="RECE")[0]
+        self.assertEqual(t.kind, "BUY")
+        self.assertEqual(t.quantity, Decimal("500"))
+        self.assertEqual(t.amount, Decimal("-119450"))
+
+    def test_a_deliver_is_a_sell(self):
+        t = self.parse(rede="DELI")[0]
+        self.assertEqual(t.kind, "SELL")
+        self.assertEqual(t.quantity, Decimal("-500"))
+        self.assertEqual(t.amount, Decimal("119450"))
+
+    def test_settlement_date_is_carried_through(self):
+        t = self.parse()[0]
+        self.assertEqual(t.trade_date, date(2026, 6, 29))
+        self.assertEqual(t.settle_date, date(2026, 7, 2))
+
+    def test_in_flight_is_bounded_at_both_ends(self):
+        t = self.parse()[0]
+        self.assertTrue(t.in_flight_at(date(2026, 6, 30)))
+        self.assertTrue(t.in_flight_at(date(2026, 6, 29)))   # traded, not settled
+        self.assertFalse(t.in_flight_at(date(2026, 6, 28)))  # not yet traded
+        self.assertFalse(t.in_flight_at(date(2026, 7, 2)))   # settled that day
+
+    def test_a_corporate_action_movement_reads_its_event_code(self):
+        path = self.write(
+            mt536(body=(MT536_TRAN % ("RECE", "CORP")).replace(
+                ":22F::TRAN//CORP", ":22F::TRAN//CORP\n:22F::CAEV//SPLF")),
+            name="mt536.txt",
+        )
+        self.assertEqual(parse_mt536(path)[0].kind, "SPLIT")
+
+    def test_a_corporate_action_without_an_event_code_is_refused(self):
+        """CORP alone does not say whether shares arrived from a split or a
+        merger allocation, and the two reconcile against different things."""
+        self.assertRaises(ParseError, self.parse, tran="CORP")
+
+    def test_an_unknown_direction_is_refused(self):
+        self.assertRaises(ParseError, self.parse, rede="XXXX")
+
+    # --- declared absence is not the same as absence ---
+
+    def test_a_quarter_with_no_movements_says_so(self):
+        self.assertEqual(self.parse(activity="N"), [])
+
+    def test_declaring_no_activity_while_carrying_some_is_refused(self):
+        """A truncated download must not read as a quiet quarter."""
+        path = self.write(
+            mt536(activity="N", body=MT536_TRAN % ("RECE", "TRAD")), name="mt536.txt"
+        )
+        self.assertRaises(ParseError, parse_mt536, path)
+
+    def test_declaring_activity_while_carrying_none_is_refused(self):
+        path = self.write(mt536(activity="Y", body=""), name="mt536.txt")
+        self.assertRaises(ParseError, parse_mt536, path)
+
+
+class TestThreeFormatsOneModel(StatementsFixture):
+    """
+    The claim normalize.py makes in its own docstring: adding a custodian means
+    adding a parser and touching nothing else. Northgate is the third format and
+    the second number convention change, so this is where that claim is tested
+    rather than asserted.
+    """
+
+    def setUp(self):
+        super(TestThreeFormatsOneModel, self).setUp()
+        self.period = load_period(self.dir)
+
+    def test_the_swift_custodian_lands_in_the_same_model(self):
+        snap = self.period["current"][NORTHGATE]
+        self.assertEqual(snap.basis, "TRAD")
+        self.assertEqual(
+            sorted(p.isin for p in snap.positions), sorted([AAPL, MSFT])
+        )
+
+    def test_only_the_swift_custodian_reports_a_trade_date_basis(self):
+        bases = dict(
+            (name, s.basis) for name, s in self.period["current"].items()
+        )
+        self.assertEqual(bases[NORTHGATE], "TRAD")
+        self.assertEqual(bases[MERIDIAN], "SETT")
+        self.assertEqual(bases[BHP], "SETT")
+
+    def test_exactly_one_movement_is_in_flight_at_the_period_end(self):
+        """The 500 AAPL traded on 29 June and settling on 2 July. This single
+        row is why Northgate reports 1,800 and the others report 1,300."""
+        as_of = self.period["current"][NORTHGATE].as_of
+        flight = [
+            t for t in self.period["txns_current"][NORTHGATE] if t.in_flight_at(as_of)
+        ]
+        self.assertEqual(len(flight), 1)
+        self.assertEqual(flight[0].isin, AAPL)
+        self.assertEqual(flight[0].quantity, Decimal("500"))
+
+    def test_a_corporate_action_has_no_settlement_date(self):
+        """
+        A split moves shares without settling. Recording the trade date in that
+        column would put a same-day settled movement in the file rather than
+        nothing — harmless until a rule asks what is in flight.
+        """
+        splits = [
+            t for t in self.period["txns_current"][MERIDIAN] if t.kind == "SPLIT"
+        ]
+        self.assertTrue(splits)
+        for t in splits:
+            self.assertIsNone(t.settle_date)
 
 
 if __name__ == "__main__":

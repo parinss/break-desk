@@ -32,6 +32,8 @@ ZERO = Decimal("0")
 
 _US_NUMBER = re.compile(r"^-?[\d,]*\.?\d*$")
 _EU_NUMBER = re.compile(r"^-?[\d.]*,?\d*$")
+# SWIFT is the strict one: digits, exactly one comma, nothing else.
+_SWIFT_NUMBER = re.compile(r"^\d+,\d*$")
 
 
 class ParseError(ValueError):
@@ -48,6 +50,29 @@ def parse_eu_decimal(raw):
     # type: (str) -> Decimal
     """`1.200,000` / `214,35` -> Decimal."""
     return _parse(raw, thousands=".", decimal=",", pattern=_EU_NUMBER)
+
+
+def parse_swift_decimal(raw):
+    # type: (str) -> Decimal
+    """
+    `1800,` / `238,90` -> Decimal. The ISO 15022 field format.
+
+    A third number convention, and by some distance the strictest. SWIFT writes
+    the decimal separator as a comma, forbids thousands separators outright, and
+    *requires* the comma even on a whole number: `1800,` is well-formed and
+    `1800` is not.
+
+    That last rule is worth enforcing rather than smoothing over. A bare `1800`
+    in an MT535 means the field was assembled by something that does not know the
+    format — and the failure that follows is not a rejected message, it is a
+    quantity read correctly today and misread the day someone's serialiser starts
+    emitting `1.800` for the same value.
+    """
+    text = "" if raw is None else raw.strip()
+    if not _SWIFT_NUMBER.match(text):
+        raise ParseError("not a well-formed SWIFT amount: %r" % raw)
+    # `1800,` is a whole number, not a truncated one.
+    return Decimal(text.replace(",", ".").rstrip("."))
 
 
 def _parse(raw, thousands, decimal, pattern):
@@ -99,6 +124,12 @@ def parse_eu_date(raw):
 def parse_iso_date(raw):
     # type: (str) -> date
     return _parse_date(raw, ("%Y-%m-%d",))
+
+
+def parse_swift_date(raw):
+    # type: (str) -> date
+    """`20260630` -> date(2026, 6, 30). ISO 15022 dates carry no separators."""
+    return _parse_date(raw, ("%Y%m%d",))
 
 
 def _parse_date(raw, formats):
