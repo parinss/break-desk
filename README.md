@@ -4,6 +4,11 @@ Multi-custodian position reconciliation for wealth managers. Two custodians, two
 statement formats, two number locales, one quarter — and every figure in the
 output traceable to a file and a line number in a source document.
 
+**[Open the desk →](https://parinss.github.io/break-desk/)** — the live queue on
+the demo quarter. Pick any finding and it expands to the custodians' own lines.
+
+To run it yourself:
+
 ```
 python3 scripts/generate.py     # write the synthetic statements
 python3 scripts/build.py        # reconcile -> public/data/breaks.json
