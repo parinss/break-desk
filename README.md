@@ -228,3 +228,21 @@ a line that says what it claims, that the output is byte-identical run to run,
 and that a hostile language model degrades the prose and nothing else.
 `tests/test_serve.py` speaks HTTP over a real socket, including a symlink that
 escapes the document root without a `..` anywhere in the request.
+
+---
+
+## Who wrote this
+
+Parin Shah — Engineering Manager, Market Data at Addepar (2022–2026), running the
+team behind the security master, the identifier crosswalk, and the
+corporate-action and pricing feeds under a wealth-management platform, across 20+
+vendors.
+
+That is the half of this repository I did not have to look up. The reference-data
+reasoning here — CUSIP beating ticker when the two disagree, former tickers that
+still have to resolve, an independent corporate-action record rather than an
+inference from the custodians' own disagreement — is the failure mode I spent
+four years watching. The desk workflow layered on top of it is modelled, not
+lived.
+
+parin.sunil.shah@gmail.com
