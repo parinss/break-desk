@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+venv/
+.idea/
+.vscode/
+
+# The built report IS committed — a reader should be able to clone, run
+# serve.py, and see the console without a build step. It is byte-identical
+# run to run, so it never churns in a diff.
