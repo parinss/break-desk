@@ -55,10 +55,19 @@ class InventedFigureError(ValueError):
 # --- the guarantee -----------------------------------------------------------
 
 
+# The only two fields a language model may ever write. Named once rather than
+# spelled out at each site: the rule is enforced here, relied on by the tamper
+# check, drawn in docs/architecture.svg, and asserted in three test files. A
+# claim repeated in five places as a literal is a claim that will one day be
+# true in four of them.
+PROSE_FIELDS = ("narrative", "proposed_fix")
+
+
 def fingerprint(brk):
     # type: (Break) -> str
     """Everything about a break except the two fields prose is allowed to fill."""
-    return to_json(replace(brk, narrative="", proposed_fix=""), indent=None)
+    blanked = dict((field, "") for field in PROSE_FIELDS)
+    return to_json(replace(brk, **blanked), indent=None)
 
 
 def _normalise_number(token):

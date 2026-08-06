@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 600" width="1060" height="600" role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">Break Desk architecture</title>
+  <desc id="dsc">Three custodian statements in three formats and three number locales are parsed into one canonical model in which provenance is a required field. Thirteen pure detectors compare that model against itself and against an independent corporate-action reference feed, producing findings ranked by severity band and then by value at risk. A language model writes two prose fields onto each finding and can touch nothing else. Every figure in the finished report opens to the file and line it was read from.</desc>
+
+  <style>
+    svg {
+      --ground: #F6F7F9;
+      --panel:  #FFFFFF;
+      --rule:   #D3D9E0;
+      --ink:    #14181D;
+      --muted:  #5C6673;
+      --faint:  #8A94A1;
+      --accent: #A61B2B;
+      --accent-soft: #F4E3E5;
+      --ref:    #2C6B66;
+      --ref-soft: #E0EDEB;
+    }
+    @media (prefers-color-scheme: dark) {
+      svg {
+        --ground: #0E1114;
+        --panel:  #161B20;
+        --rule:   #2B333B;
+        --ink:    #E7EAEE;
+        --muted:  #929CA9;
+        --faint:  #6B7684;
+        --accent: #E4707E;
+        --accent-soft: #2A1A1E;
+        --ref:    #5FB4AC;
+        --ref-soft: #142524;
+      }
+    }
+    .bg     { fill: var(--ground); }
+    .card   { fill: var(--panel); stroke: var(--rule); stroke-width: 1; }
+    .inset  { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; stroke-opacity: .35; }
+    .refset { fill: var(--ref-soft); stroke: var(--ref); stroke-width: 1; stroke-opacity: .4; }
+    text    { font-family: "Söhne", "Inter", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: .14em; fill: var(--faint); }
+    .h      { font-size: 13px; font-weight: 650; fill: var(--ink); }
+    .sub    { font-size: 10.5px; fill: var(--muted); }
+    .tiny   { font-size: 9.5px; fill: var(--faint); }
+    .mono   { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+              font-size: 11px; fill: var(--ink); }
+    .monos  { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+              font-size: 10px; fill: var(--muted); }
+    .flow   { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+    .flowref{ fill: none; stroke: var(--ref); stroke-width: 1.4; }
+    .flowllm{ fill: none; stroke: var(--faint); stroke-width: 1.4; stroke-dasharray: 4 3; }
+    .rail   { fill: none; stroke: var(--rule); stroke-width: 1; }
+    .chipC  { fill: var(--accent); }
+    .chipH  { fill: none; stroke: var(--accent); stroke-width: 1; }
+    .chipM  { fill: none; stroke: var(--rule); stroke-width: 1; }
+    .chipTC { font-size: 9px; font-weight: 700; letter-spacing: .04em; fill: var(--panel); }
+    .chipTH { font-size: 9px; font-weight: 700; letter-spacing: .04em; fill: var(--accent); }
+    .chipTM { font-size: 9px; font-weight: 700; letter-spacing: .04em; fill: var(--muted); }
+    .amt    { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+              font-size: 11px; font-variant-numeric: tabular-nums; fill: var(--ink); }
+  </style>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--muted)"/>
+    </marker>
+    <marker id="ahref" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--ref)"/>
+    </marker>
+    <marker id="ahllm" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L8 4 L0 8 z" fill="var(--faint)"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1060" height="600"/>
+
+  <!-- ================= column headings ================= -->
+  <text class="eyebrow" x="28"  y="40">STATEMENTS</text>
+  <text class="eyebrow" x="320" y="40">CANONICAL MODEL</text>
+  <text class="eyebrow" x="556" y="40">DETECTION</text>
+  <text class="eyebrow" x="792" y="40">QUEUE</text>
+
+  <!-- ================= 1. three statements ================= -->
+  <rect class="card" x="28" y="56" width="252" height="86" rx="6"/>
+  <text class="h"    x="44" y="79">Meridian Securities</text>
+  <text class="mono" x="44" y="101">MSFT,594918104,750.000,341.60</text>
+  <text class="tiny" x="44" y="120">US CSV · parse_meridian_positions</text>
+
+  <rect class="card" x="28" y="156" width="252" height="86" rx="6"/>
+  <text class="h"    x="44" y="179">Banque Helvétique Privée</text>
+  <text xml:space="preserve" class="mono" x="44" y="201">US5949181045   750,000   341,60</text>
+  <text class="tiny" x="44" y="220">PDF text · parse_bhp_positions</text>
+
+  <rect class="card" x="28" y="256" width="252" height="86" rx="6"/>
+  <text class="h"    x="44" y="279">Northgate Trust Company</text>
+  <text class="mono" x="44" y="301">:93B::AGGR//UNIT/750,</text>
+  <text class="tiny" x="44" y="320">ISO 15022 · parse_mt535 / parse_mt536</text>
+
+  <text class="tiny" x="28" y="362">One holding, three formats, three number locales. In ISO 15022 the trailing comma is mandatory — and 1,800 would mean one point eight.</text>
+
+  <!-- converging flow -->
+  <path class="flow" d="M280 99  C 300 99, 296 199, 314 199"  marker-end="url(#ah)"/>
+  <path class="flow" d="M280 199 L 314 199"                   marker-end="url(#ah)"/>
+  <path class="flow" d="M280 299 C 300 299, 296 199, 314 199" marker-end="url(#ah)"/>
+
+  <!-- ================= 2. canonical model ================= -->
+  <rect class="card" x="320" y="56" width="196" height="286" rx="6"/>
+  <text class="h"    x="336" y="82">One canonical model</text>
+  <text class="sub"  x="336" y="99">Adding a custodian adds a</text>
+  <text class="sub"  x="336" y="114">parser and nothing else.</text>
+
+  <text class="mono" x="336" y="146">Position</text>
+  <text class="mono" x="336" y="164">Transaction</text>
+  <text class="mono" x="336" y="182">CorporateAction</text>
+
+  <rect class="inset" x="336" y="200" width="164" height="116" rx="5"/>
+  <text class="mono" x="350" y="224">Provenance</text>
+  <text class="sub"  x="350" y="243">file · line · excerpt</text>
+  <text class="sub"  x="350" y="266">A required field, not</text>
+  <text class="sub"  x="350" y="281">metadata. A finding you</text>
+  <text class="sub"  x="350" y="296">cannot trace to a line</text>
+  <text class="sub"  x="350" y="311">is an assertion.</text>
+
+  <text class="tiny" x="534" y="190">detect</text>
+  <path class="flow" d="M516 199 L 550 199" marker-end="url(#ah)"/>
+
+  <!-- ================= 3. detectors ================= -->
+  <rect class="card" x="556" y="56" width="196" height="286" rx="6"/>
+  <text class="h"    x="572" y="82">Thirteen pure detectors</text>
+  <text class="sub"  x="572" y="99">no files, no clock, no network</text>
+
+  <text class="mono" x="572" y="130">QTY_ROLLFORWARD</text>
+  <text class="mono" x="572" y="148">MERGER_UNPROCESSED</text>
+  <text class="mono" x="572" y="166">CROSS_CUSTODIAN_QTY</text>
+  <text class="mono" x="572" y="184">STATEMENT_BASIS_MISMATCH</text>
+  <text class="monos" x="572" y="202">+ nine more</text>
+
+  <text class="sub"  x="572" y="240">Each tested twice: that it</text>
+  <text class="sub"  x="572" y="255">fires, and that it stays</text>
+  <text class="sub"  x="572" y="270">silent on the neighbouring</text>
+  <text class="sub"  x="572" y="285">case that merely resembles</text>
+  <text class="sub"  x="572" y="300">it. A desk that flags</text>
+  <text class="sub"  x="572" y="315">everything gets switched off.</text>
+
+  <text class="tiny" x="772" y="190">rank</text>
+  <path class="flow" d="M752 199 L 786 199" marker-end="url(#ah)"/>
+
+  <!-- ================= 4. ranked queue ================= -->
+  <rect class="card" x="792" y="56" width="240" height="286" rx="6"/>
+  <text class="h"    x="808" y="82">Ranked by value at risk</text>
+  <text class="sub"  x="808" y="99">severity band first, then money</text>
+
+  <rect class="chipC" x="808" y="116" width="59" height="17" rx="8.5"/>
+  <text class="chipTC" x="817" y="128">CRITICAL</text>
+  <text class="amt"  x="882" y="129">USD 542,600.00</text>
+  <text class="tiny" x="808" y="147">Tesla — merger leg never credited</text>
+
+  <rect class="chipC" x="808" y="164" width="59" height="17" rx="8.5"/>
+  <text class="chipTC" x="817" y="176">CRITICAL</text>
+  <text class="amt"  x="882" y="177">USD 285,360.00</text>
+  <text class="tiny" x="808" y="195">NVIDIA — 4-for-1 split unapplied</text>
+
+  <rect class="chipH" x="808" y="212" width="38" height="17" rx="8.5"/>
+  <text class="chipTH" x="817" y="224">HIGH</text>
+  <text xml:space="preserve" class="amt"  x="882" y="225">USD   7,230.00</text>
+  <text class="tiny" x="808" y="243">Vodafone — 600 shares unbooked</text>
+
+  <rect class="chipM" x="808" y="260" width="55" height="17" rx="8.5"/>
+  <text class="chipTM" x="817" y="272">MEDIUM</text>
+  <text class="amt"  x="882" y="273">USD 119,450.00</text>
+  <text class="tiny" x="808" y="291">Statement basis — capped: nothing</text>
+  <text class="tiny" x="808" y="304">is missing, it is in flight</text>
+
+  <text class="tiny" x="808" y="328">breaks.json → two-pane console</text>
+
+  <!-- ================= reference feed ================= -->
+  <rect class="refset" x="320" y="386" width="196" height="104" rx="6"/>
+  <rect x="320" y="386" width="3.5" height="104" fill="var(--ref)"/>
+  <text class="h"   x="336" y="410">Reference feed</text>
+  <text class="sub" x="336" y="429">Corporate actions confirmed</text>
+  <text class="sub" x="336" y="444">independently — never inferred</text>
+  <text class="sub" x="336" y="459">from two custodians</text>
+  <text class="sub" x="336" y="474">disagreeing four to one.</text>
+  <path class="flowref" d="M516 424 C 566 424, 574 400, 610 350" marker-end="url(#ahref)"/>
+
+  <!-- ================= prose layer ================= -->
+  <rect class="card" x="792" y="386" width="240" height="104" rx="6"/>
+  <text class="h"    x="808" y="409">Language model</text>
+  <text class="mono" x="808" y="430">narrative · proposed_fix</text>
+  <text class="sub"  x="808" y="449">Two fields and nothing else.</text>
+  <text class="sub"  x="808" y="464">A fingerprint of every other</text>
+  <text class="sub"  x="808" y="479">field stops the run if it moves.</text>
+  <text class="tiny" x="770" y="372" text-anchor="end">prose only — figures are checked</text>
+  <path class="flowllm" d="M912 386 L 912 350" marker-end="url(#ahllm)"/>
+
+  <!-- ================= provenance rail ================= -->
+  <line class="rail" x1="28" y1="510" x2="1032" y2="510"/>
+  <rect class="card" x="28" y="520" width="1004" height="56" rx="6"/>
+  <text class="eyebrow" x="44" y="553">PROVENANCE</text>
+  <text class="monos" x="140" y="553">bhp_vermoegensausweis_2026-06-30.txt:17</text>
+  <text class="monos" x="404" y="553">→</text>
+  <text xml:space="preserve" class="monos" x="424" y="553">US67066G1040   NVIDIA CORPORATION   800,000   118,90   USD</text>
+  <text class="tiny"  x="812" y="553">Every figure opens to the line it came from.</text>
+</svg>
