@@ -1,0 +1,55 @@
+name: Pages
+
+# The desk is a static frontend over a committed report — app.js fetches
+# data/breaks.json on a relative path — so public/ is the whole site and no
+# server is required to host it. serve.py stays a local convenience: its /desk
+# prefix and its traversal defence matter when a Python process is handing out
+# files off a real filesystem, and neither is load-bearing for a static host.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one in flight: a half-published tree
+# would serve index.html against a stale breaks.json, which is the one failure
+# this repository has no business shipping.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # The published site is a rendering of public/data/breaks.json, and that file
+  # is committed rather than built here. The suite is what establishes it is the
+  # report the pipeline actually produces, so it gates the deploy: the site can
+  # never be published from a commit whose tests do not pass.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Pinned, not "latest". The code targets 3.9 deliberately, and running
+          # the suite anywhere else would stop proving that.
+          python-version: '3.9'
+      - run: python3 -m unittest discover -s tests
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
