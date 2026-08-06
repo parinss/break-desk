@@ -1,0 +1,803 @@
+/* ---------------------------------------------------------------------------
+   style.css — a fixed two-pane console, not a document.
+
+   The shell is exactly one viewport tall and the two panes scroll inside it.
+   That is a structural choice, not a stylistic one: a reconciliation queue is
+   worked through, not read top to bottom, and a layout whose right-hand side
+   is always filled by the selected finding cannot develop the dead space a
+   stacked document does whenever the list is short.
+
+   Palette comes from accounting stationery rather than the usual dashboard
+   grey — a faintly green paper ground, a warm near-white working surface, a
+   deep ledger green for the chrome. Severity is oxblood / burnt amber / slate,
+   readable in greyscale and to the common colour vision deficiencies, and is
+   encoded three ways regardless: a left bar, a text tag, and sort order.
+
+   Three type roles, all from stacks already on the machine, because a webfont
+   is a network dependency on a page whose whole argument is that you can check
+   everything it says: serif for names and prose, sans for chrome, mono for
+   every figure, identifier and quoted source line.
+--------------------------------------------------------------------------- */
+
+:root {
+  --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --ground: #e6e8e2;
+  --pane: #fbfbf8;
+  --pane-2: #f1f3ec;
+  --ink: #1b1e19;
+  --ink-2: #5f665c;
+  --ink-3: #888e83;
+  --rule: #d2d6cb;
+  --rule-2: #e3e6dc;
+  --bar: #14201c;
+  --bar-ink: #eaece4;
+  --bar-ink-2: #92a099;
+  --bar-rule: #2b3a34;
+  --accent: #1d5546;
+
+  --crit: #93261c;
+  --high: #8a5510;
+  --med: #3f5b66;
+  --low: #5f665c;
+  --crit-wash: #f4e6e3;
+  --high-wash: #f5ecdd;
+  --med-wash: #e6edf0;
+  --low-wash: #eaece6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0f1210;
+    --pane: #181c18;
+    --pane-2: #131713;
+    --ink: #e7eae3;
+    --ink-2: #99a193;
+    --ink-3: #6c746a;
+    --rule: #2c322b;
+    --rule-2: #232821;
+    --bar: #090c0a;
+    --bar-ink: #e7eae3;
+    --bar-ink-2: #7e8a80;
+    --bar-rule: #1e2620;
+    --accent: #6fbfa4;
+
+    --crit: #e07a68;
+    --high: #d2a052;
+    --med: #85aec0;
+    --low: #99a193;
+    --crit-wash: #2a1a17;
+    --high-wash: #281f12;
+    --med-wash: #17232a;
+    --low-wash: #1c211b;
+  }
+}
+
+/* The viewer's theme toggle stamps data-theme on the root, and it has to win
+   over the media query in both directions — hence both, restated. */
+:root[data-theme="light"] {
+  --ground: #e6e8e2; --pane: #fbfbf8; --pane-2: #f1f3ec;
+  --ink: #1b1e19; --ink-2: #5f665c; --ink-3: #888e83;
+  --rule: #d2d6cb; --rule-2: #e3e6dc;
+  --bar: #14201c; --bar-ink: #eaece4; --bar-ink-2: #92a099; --bar-rule: #2b3a34;
+  --accent: #1d5546;
+  --crit: #93261c; --high: #8a5510; --med: #3f5b66; --low: #5f665c;
+  --crit-wash: #f4e6e3; --high-wash: #f5ecdd; --med-wash: #e6edf0; --low-wash: #eaece6;
+}
+
+:root[data-theme="dark"] {
+  --ground: #0f1210; --pane: #181c18; --pane-2: #131713;
+  --ink: #e7eae3; --ink-2: #99a193; --ink-3: #6c746a;
+  --rule: #2c322b; --rule-2: #232821;
+  --bar: #090c0a; --bar-ink: #e7eae3; --bar-ink-2: #7e8a80; --bar-rule: #1e2620;
+  --accent: #6fbfa4;
+  --crit: #e07a68; --high: #d2a052; --med: #85aec0; --low: #99a193;
+  --crit-wash: #2a1a17; --high-wash: #281f12; --med-wash: #17232a; --low-wash: #1c211b;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* --- shell --------------------------------------------------------------- */
+
+.shell {
+  /* vh first: where dvh is unsupported the declaration is dropped, and without
+     a fallback `height` reverts to auto — the grid then grows past the viewport
+     and takes the status bar with it. */
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+}
+
+/* Every row is pinned. The banner and the drawer spend most of their life
+   `hidden`, which takes them out of the grid entirely — left to auto-placement
+   the remaining three children slide up a track each, .body lands on an `auto`
+   row and grows to its content, and the status bar gets pushed off the bottom
+   of the viewport. Explicit placement makes the shell independent of which
+   children happen to be showing. */
+.chrome { grid-row: 1; }
+.banner { grid-row: 2; }
+.body   { grid-row: 3; }
+.drawer { grid-row: 4; }
+.status { grid-row: 5; }
+
+/* --- chrome bar ---------------------------------------------------------- */
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0 1.25rem;
+  min-height: 62px;
+  background: var(--bar);
+  color: var(--bar-ink);
+  border-bottom: 1px solid var(--bar-rule);
+}
+
+.chrome-id h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: .01em;
+}
+
+.chrome-id p {
+  margin: 0;
+  font-size: .69rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--bar-ink-2);
+}
+
+.chrome-meta {
+  display: flex;
+  gap: 1.75rem;
+  margin: 0 0 0 auto;
+  align-items: baseline;
+}
+
+.chrome-meta div { display: flex; flex-direction: column; gap: .1rem; }
+
+.chrome-meta dt {
+  font-size: .61rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--bar-ink-2);
+}
+
+.chrome-meta dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chrome-risk {
+  display: flex;
+  gap: 1.5rem;
+  padding-left: 1.75rem;
+  border-left: 1px solid var(--bar-rule);
+}
+
+.chrome-risk div { text-align: right; }
+
+.chrome-risk .k {
+  display: block;
+  font-size: .61rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--bar-ink-2);
+}
+
+.chrome-risk .v {
+  display: block;
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- banner -------------------------------------------------------------- */
+
+.banner {
+  margin: 0;
+  padding: .7rem 1.25rem;
+  background: var(--high-wash);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  font-size: .84rem;
+}
+
+/* --- body ---------------------------------------------------------------- */
+
+.body {
+  display: grid;
+  grid-template-columns: 336px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.pane-list {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--pane-2);
+  border-right: 1px solid var(--rule);
+}
+
+.pane-detail {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--pane);
+}
+
+/* --- list ---------------------------------------------------------------- */
+
+.list-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--pane-2);
+  border-bottom: 1px solid var(--rule);
+  padding: .7rem .85rem .6rem;
+}
+
+.list-count {
+  font-size: .63rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: .5rem;
+}
+
+.filters { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.filter {
+  font: inherit;
+  font-size: .69rem;
+  letter-spacing: .04em;
+  padding: .16rem .5rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.filter:hover { border-color: var(--ink-3); color: var(--ink); }
+
+.filter[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--pane);
+}
+
+.filter .count {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  opacity: .75;
+  margin-left: .2rem;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.row {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule-2);
+  padding: .62rem .85rem .62rem 1rem;
+  cursor: pointer;
+}
+
+.row::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--sev);
+}
+
+.row:hover { background: var(--ground); }
+.row.is-current { background: var(--pane); }
+.row.is-current::before { width: 5px; }
+
+.row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .6rem;
+}
+
+.row-sev {
+  font-family: var(--mono);
+  font-size: .6rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--sev);
+}
+
+.row-risk {
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row-security {
+  font-family: var(--serif);
+  font-size: .96rem;
+  line-height: 1.3;
+  margin-top: .14rem;
+}
+
+.row.is-current .row-security { font-weight: 600; }
+
+.row-kind {
+  font-family: var(--mono);
+  font-size: .63rem;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+  margin-top: .1rem;
+}
+
+.list-empty,
+.list-hint {
+  padding: 1rem .95rem;
+  margin: 0;
+  font-size: .72rem;
+  color: var(--ink-3);
+}
+
+.list-hint { border-top: 1px solid var(--rule-2); }
+
+/* --- detail -------------------------------------------------------------- */
+
+.d-wrap { padding: 1.6rem 2rem 3rem; }
+
+.d-back {
+  display: none;
+  font: inherit;
+  font-size: .76rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-2);
+  padding: .3rem .6rem;
+  margin-bottom: .9rem;
+  cursor: pointer;
+}
+
+.d-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: .8rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+.d-security {
+  font-family: var(--serif);
+  font-size: 1.65rem;
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.d-sub {
+  font-family: var(--mono);
+  font-size: .73rem;
+  color: var(--ink-2);
+  margin-top: .35rem;
+  overflow-wrap: anywhere;
+}
+
+.d-risk { text-align: right; white-space: nowrap; }
+
+.d-risk-label {
+  display: block;
+  font-size: .61rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.d-risk-fig {
+  display: block;
+  font-family: var(--mono);
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sev);
+  line-height: 1.2;
+}
+
+.d-tags { display: flex; align-items: center; gap: .5rem; margin: .7rem 0 0; }
+
+.chip {
+  font-family: var(--mono);
+  font-size: .61rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  padding: .17rem .5rem;
+  border-radius: 2px;
+  background: var(--sev-wash);
+  color: var(--sev);
+}
+
+.kindtag {
+  font-family: var(--mono);
+  font-size: .69rem;
+  letter-spacing: .05em;
+  color: var(--ink-2);
+}
+
+.d-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 2.6rem;
+  align-items: start;
+  margin-top: 1.6rem;
+}
+
+/* Only the two prose blocks share the column grid, because they are the two
+   things of comparable length — an assessment and the action it implies. The
+   figures and the evidence run full width below. Putting a fourteen-row
+   figures table in a side column next to a six-line paragraph is what leaves a
+   column of empty pane, which is the thing this layout exists to avoid. */
+.d-figures,
+.d-evidence { margin-top: 2.1rem; }
+
+.d-h {
+  font-size: .63rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 0 0 .55rem;
+  padding-bottom: .3rem;
+  border-bottom: 1px solid var(--rule);
+  font-weight: 600;
+}
+
+.narrative {
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  line-height: 1.62;
+  margin: 0;
+  max-width: 64ch;
+}
+
+/* --- evidence ------------------------------------------------------------ */
+
+.cite + .cite { margin-top: .85rem; }
+
+.cite-role { display: flex; align-items: baseline; gap: .55rem; margin-bottom: .28rem; }
+
+.cite-tag {
+  font-size: .58rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--pane);
+  background: var(--ink-2);
+  padding: .1rem .38rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.cite-tag.is-ref { background: var(--accent); }
+
+.cite-where {
+  font-family: var(--mono);
+  font-size: .69rem;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.cite-line {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--pane-2);
+  overflow-x: auto;
+}
+
+.cite-no {
+  flex: none;
+  position: sticky;
+  left: 0;
+  padding: .4rem .5rem;
+  font-family: var(--mono);
+  font-size: .68rem;
+  color: var(--ink-3);
+  background: var(--ground);
+  border-right: 1px solid var(--rule);
+  text-align: right;
+  min-width: 2.6rem;
+}
+
+.cite-text {
+  margin: 0;
+  padding: .4rem .65rem;
+  font-family: var(--mono);
+  font-size: .72rem;
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--ink);
+}
+
+/* --- computed figures ---------------------------------------------------- */
+
+/* Wide and shallow rather than narrow and deep: fourteen figures as one column
+   is a 450px column nobody reads to the end of, and as four columns it is a
+   block you take in at a glance. */
+.figures {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+  column-gap: 2.4rem;
+  border-top: 1px solid var(--rule-2);
+}
+
+.figures div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .9rem;
+  padding: .3rem 0;
+  border-bottom: 1px solid var(--rule-2);
+}
+
+.figures dt { font-size: .74rem; color: var(--ink-2); }
+
+.figures dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.figures div.is-gap dt { color: var(--ink); font-weight: 600; }
+.figures div.is-gap dd { color: var(--sev); font-weight: 600; }
+
+.action {
+  font-family: var(--serif);
+  font-size: .92rem;
+  line-height: 1.55;
+  margin: 0;
+  padding: .7rem .85rem;
+  background: var(--pane-2);
+  border-left: 3px solid var(--accent);
+}
+
+.d-placeholder { padding: 4rem 2rem; color: var(--ink-3); font-size: .85rem; }
+
+/* --- drawer -------------------------------------------------------------- */
+
+.drawer {
+  max-height: 54vh;
+  overflow-y: auto;
+  background: var(--pane);
+  border-top: 1px solid var(--rule);
+}
+
+.drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem 2rem;
+  padding: 1.25rem 1.5rem 1.6rem;
+}
+
+.dpanel-wide { grid-column: span 2; }
+
+.dpanel h2 {
+  font-size: .63rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 0 0 .5rem;
+  padding-bottom: .3rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dnote,
+.dprose {
+  font-size: .78rem;
+  color: var(--ink-2);
+  margin: 0 0 .6rem;
+  max-width: 62ch;
+}
+
+.dprose { line-height: 1.55; }
+
+.source + .source { margin-top: .7rem; }
+
+.source-name { font-family: var(--serif); font-size: .93rem; }
+
+.source-file {
+  font-family: var(--mono);
+  font-size: .69rem;
+  color: var(--accent);
+  word-break: break-all;
+}
+
+.source-facts { font-size: .72rem; color: var(--ink-2); }
+
+.clean { list-style: none; margin: 0; padding: 0; }
+
+.clean li {
+  display: flex;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .22rem 0;
+  border-bottom: 1px solid var(--rule-2);
+  font-size: .8rem;
+}
+
+.clean .isin { font-family: var(--mono); font-size: .69rem; color: var(--ink-3); }
+
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: .1rem 1.4rem;
+}
+
+.rules li { padding: .28rem 0; border-bottom: 1px solid var(--rule-2); }
+
+.rule-kind { font-family: var(--mono); font-size: .68rem; letter-spacing: .03em; }
+
+.rule-kind.is-fired { color: var(--ink); font-weight: 600; }
+.rule-kind.is-quiet { color: var(--ink-3); }
+
+.rule-kind::before {
+  content: "";
+  display: inline-block;
+  width: .42rem;
+  height: .42rem;
+  margin-right: .42rem;
+  border: 1px solid var(--ink-3);
+  border-radius: 50%;
+}
+
+.rule-kind.is-fired::before { background: var(--ink); border-color: var(--ink); }
+
+.rule-desc { font-size: .71rem; color: var(--ink-2); padding-left: .84rem; }
+
+/* --- status bar ---------------------------------------------------------- */
+
+/* Wrapping matters more than it looks: this row is the widest fixed content in
+   the shell, and without it the coverage facts set a floor on the page width
+   and clip every pane behind them on a phone. */
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .1rem 1.25rem;
+  padding: .2rem 1rem;
+  min-height: 34px;
+  background: var(--bar);
+  color: var(--bar-ink-2);
+  font-size: .7rem;
+}
+
+.status-toggle {
+  font: inherit;
+  font-size: .68rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  color: var(--bar-ink);
+  cursor: pointer;
+  padding: .4rem 0;
+}
+
+.status-toggle .caret {
+  display: inline-block;
+  font-size: .5rem;
+  transition: transform .15s ease;
+}
+
+.status-toggle[aria-expanded="true"] .caret { transform: rotate(180deg); }
+
+.status-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .1rem 1.1rem;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-facts b { color: var(--bar-ink); font-weight: 400; }
+
+/* --- narrow -------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .d-cols { grid-template-columns: minmax(0, 1fr); gap: 1.9rem; }
+  .d-side { max-width: 34rem; }
+}
+
+/* Below this the two panes cannot both be useful, so the shell becomes one
+   pane at a time — list, then detail with a way back. The alternative, two
+   240px columns, gives a phone neither a readable queue nor readable
+   evidence. */
+@media (max-width: 900px) {
+  /* Stacked label-over-value costs two lines per field, which on a phone puts
+     a quarter of the screen into chrome that never changes. Laid on its side
+     the same four fields cost two rows, and nothing has to be dropped. */
+  .chrome { flex-wrap: wrap; padding: .5rem 1rem .55rem; gap: .3rem 1rem; min-height: 0; }
+  .chrome-id h1 { font-size: 1.08rem; }
+  .chrome-id p { display: none; }   /* the strapline is not worth a row here */
+
+  .chrome-meta {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0 .5rem;
+  }
+
+  .chrome-meta div { flex-direction: row; align-items: baseline; gap: .45rem; }
+  .chrome-meta dt { font-size: .56rem; min-width: 5.2rem; }
+  .chrome-meta dd { font-size: .71rem; }
+
+  .chrome-risk {
+    order: 2;
+    margin-left: auto;
+    padding-left: 0;
+    border-left: 0;
+    gap: .9rem;
+  }
+
+  .chrome-risk div { display: flex; align-items: baseline; gap: .35rem; }
+  .chrome-risk .k { font-size: .55rem; }
+  .chrome-risk .v { font-size: .8rem; }
+
+  .body { grid-template-columns: minmax(0, 1fr); }
+  .pane-list { border-right: 0; }
+  .shell[data-pane="list"] .pane-detail { display: none; }
+  .shell[data-pane="detail"] .pane-list { display: none; }
+
+  .d-back { display: inline-block; }
+  .d-wrap { padding: 1.1rem 1.1rem 2.5rem; }
+  .d-head { flex-direction: column; gap: .6rem; }
+  .d-security { font-size: 1.4rem; }
+  .d-risk { text-align: left; }
+  .d-risk-fig { font-size: 1.3rem; }
+  .dpanel-wide { grid-column: auto; }
+  .drawer-grid { padding: 1rem; gap: 1.2rem; }
+  .list-hint { display: none; }
+
+  /* Touch targets, not mouse targets. */
+  .row { padding: .8rem .9rem .8rem 1rem; }
+  .filter { padding: .32rem .6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

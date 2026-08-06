@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Break Desk</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell" id="shell" data-pane="list">
+
+  <header class="chrome">
+    <div class="chrome-id">
+      <h1>Break&nbsp;Desk</h1>
+      <p>Multi-custodian reconciliation</p>
+    </div>
+    <dl class="chrome-meta" id="meta"></dl>
+    <div class="chrome-risk" id="risk"></div>
+  </header>
+
+  <p class="banner" id="banner" hidden></p>
+
+  <div class="body">
+
+    <nav class="pane-list" aria-label="Findings">
+      <div class="list-head">
+        <div class="list-count" id="listcount"></div>
+        <div class="filters" id="filters" role="group" aria-label="Filter by severity"></div>
+      </div>
+      <ol class="list" id="list"></ol>
+      <p class="list-empty" id="empty" hidden>No findings at this severity.</p>
+      <p class="list-hint">&uarr;&darr; to move between findings</p>
+    </nav>
+
+    <main class="pane-detail" id="detail" tabindex="-1"></main>
+
+  </div>
+
+  <section class="drawer" id="drawer" aria-label="Coverage" hidden>
+    <div class="drawer-grid">
+
+      <section class="dpanel">
+        <h2>Sources</h2>
+        <div id="sources"></div>
+      </section>
+
+      <section class="dpanel">
+        <h2>Checked and clear</h2>
+        <p class="dnote">Examined against every rule with nothing found.</p>
+        <ul class="clean" id="clean"></ul>
+      </section>
+
+      <section class="dpanel dpanel-wide">
+        <h2>Rules run</h2>
+        <p class="dnote">A findings list with no rule list cannot be falsified.
+          Filled marks a rule that fired.</p>
+        <ol class="rules" id="rules"></ol>
+      </section>
+
+      <section class="dpanel dpanel-wide">
+        <h2>On the language model</h2>
+        <p class="dprose">
+          Detection and arithmetic are deterministic. A model writes the two prose
+          fields on each finding and nothing else &mdash; every other field is
+          fingerprinted before the call and compared after, and any figure in the
+          prose that the desk did not compute is rejected. With no API key
+          configured the report is produced in full from templates.
+        </p>
+      </section>
+
+    </div>
+  </section>
+
+  <footer class="status">
+    <button class="status-toggle" id="drawer-toggle" type="button"
+            aria-expanded="false" aria-controls="drawer">
+      <span class="caret" aria-hidden="true">&#9650;</span> Coverage
+    </button>
+    <div class="status-facts" id="statusfacts"></div>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
