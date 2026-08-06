@@ -1,0 +1,26 @@
+BANQUE HELVETIQUE PRIVEE SA
+Rue du Rhone 42, 1204 Geneve
+
+VERMOEGENSAUSWEIS / RELEVE DE FORTUNE
+
+Konto / Compte            : PWM-4471
+Stichtag / Date           : 30.06.2026
+Referenzwaehrung / Monnaie: EUR
+
+UMRECHNUNGSKURSE / COURS DE CONVERSION
+USD/EUR   0,9170
+GBP/EUR   1,1840
+
+POSITIONEN / POSITIONS
+ISIN           Bezeichnung                             Anzahl        Kurs        Whrg   Marktwert        Wert EUR
+US0378331005   APPLE INC.                              1.300,000     238,90      USD    310.570,00       277.649,58
+US67066G1040   NVIDIA CORPORATION                      800,000       118,90      USD    95.120,00        87.225,04
+US5949181045   MICROSOFT CORPORATION                   750,000       341,60      USD    256.200,00       234.935,40
+US92857W3088   VODAFONE GROUP PLC ADR                  5.000,000     12,05       USD    60.250,00        55.249,25
+NL0010273215   ASML HOLDING N.V.                       300,000       915,60      EUR    274.680,00       274.680,00
+DE0007164600   SAP SE                                  1.100,000     253,40      EUR    278.740,00       278.740,00
+US30303M1027   META PLATFORMS INC.                     600,000       548,70      USD    329.220,00       301.894,74
+US88160R1014   TESLA INC.                              2.400,000     271,30      USD    651.120,00       597.077,04
+
+TOTAL EUR   2.107.451,05
+

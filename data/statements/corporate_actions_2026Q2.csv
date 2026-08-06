@@ -1,0 +1,9 @@
+# Corporate action reference feed
+# Source: Elbridge Data Services (synthetic stand-in for a vendor feed)
+# Retrieved: 2026-07-02T06:15:00Z
+ISIN,Symbol,ExDate,Type,RatioNew,RatioOld,RelatedISIN,OldSymbol,NewSymbol,Description
+US67066G1040,NVDA,2026-05-18,SPLIT,4,1,,,,NVIDIA Corporation 4-for-1 common stock split
+US5949181045,MSFT,2026-06-02,SPLIT,3,2,,,,Microsoft Corporation 3-for-2 common stock split
+US30303M1027,META,2026-05-05,NAME_CHANGE,1,1,,FB,META,Facebook Inc. renamed Meta Platforms Inc.; ticker FB changed to META
+US00SPACEX19,SPCX,2026-06-12,MERGER,2,1,US88160R1014,,,Space Exploration Technologies Corp. merged into Tesla Inc.; 2 TSLA per SPCX
+

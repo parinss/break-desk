@@ -1,0 +1,10 @@
+BANQUE HELVETIQUE PRIVEE SA
+
+BEWEGUNGEN / MOUVEMENTS
+
+Konto / Compte            : PWM-4471
+Periode / Periode         : 01.01.2026 - 31.03.2026
+
+Datum        ISIN           Art           Anzahl       Betrag          Whrg   Text
+31.03.2026   -              GEBUEHR       0,000        -3.847,10       EUR    Verwaltungsgebuehren Q1 2026
+

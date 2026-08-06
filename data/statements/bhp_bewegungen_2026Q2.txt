@@ -1,0 +1,17 @@
+BANQUE HELVETIQUE PRIVEE SA
+
+BEWEGUNGEN / MOUVEMENTS
+
+Konto / Compte            : PWM-4471
+Periode / Periode         : 01.04.2026 - 30.06.2026
+
+Datum        ISIN           Art           Anzahl       Betrag          Whrg   Text
+22.04.2026   US5949181045   KAUF          50,000       -25.265,00      USD    Kauf 50 MSFT
+12.05.2026   US0378331005   KAUF          300,000      -69.420,00      USD    Kauf 300 AAPL
+02.06.2026   US5949181045   AKTIENSPLIT   250,000      0,00            USD    Aktiensplit 3:2 MSFT
+09.06.2026   US0378331005   VERKAUF       200,000      47.860,00       USD    Verkauf 200 AAPL
+12.06.2026   US00SPACEX19   FUSION        -1.000,000   0,00            USD    Fusion SPCX in TSLA
+12.06.2026   US88160R1014   FUSION        2.000,000    0,00            USD    Fusion Zuteilung TSLA 2:1
+15.06.2026   US0378331005   DIVIDENDE     0,000        325,00          USD    Dividende AAPL
+30.06.2026   -              GEBUEHR       0,000        -3.912,40       EUR    Verwaltungsgebuehren Q2 2026
+
