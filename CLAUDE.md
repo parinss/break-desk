@@ -10,7 +10,8 @@ python3 scripts/generate.py            # write the synthetic statements
 python3 scripts/build.py               # reconcile -> public/data/breaks.json
 python3 scripts/build.py --no-llm      # same, templates only
 python3 serve.py                       # http://localhost:8110/desk/
-python3 -m unittest discover -s tests  # 343 tests
+python3 scripts/scale.py               # the pipeline over a 5,000-position book
+python3 -m unittest discover -s tests  # 401 tests
 ```
 
 `scripts/` and the repo root go on `sys.path`, so modules import by their own
@@ -48,12 +49,26 @@ confidence in its silence. `tests/test_corpactions.py` greps the module for
 **Severity comes from value at risk**, never assigned per rule. Control findings
 that risk the whole position but misstate nothing get `_capped_severity`.
 
+**Queue order is severity band, then exposure descending.** The band is coarse
+on purpose — everything over a hundred thousand is critical — so inside it money
+decides. It used to be the rule's name, which put the largest exposure in the
+book wherever its rule fell in the alphabet. Unpriced findings sort last within
+their band: not small, just not triageable by size. Magnitudes are compared
+across currencies without conversion, which is named in `_sorted` rather than
+hidden — it is exactly as currency-blind as the banding it refines.
+
 **The model writes prose and nothing else.** `narrative` and `proposed_fix`
 only. Enforced twice at runtime: a structural fingerprint of every other field
 before and after the call, and a check that every numeric token in the prose
 already appears in the computed detail. Tampering raises `NarrativeTamperError`
 and stops the run; an invented figure falls back to the template and is counted
 in `narrative_fallbacks`. With no API key the system produces complete reports.
+
+`explain.PROSE_FIELDS` names the two-field rule once. `public/app.js` may not
+call `parseFloat`, `toFixed`, `Number` or `parseInt` — every figure crosses into
+the browser as a string because JSON has no decimal type, and `group()` adds
+thousands separators to the digits rather than to a parsed number. Asserted by
+grep in `tests/test_serve.py`.
 
 Claude API specifics that bite: model is `claude-opus-5`, thinking is
 `{"type": "adaptive"}`, JSON via `output_config.format`. `budget_tokens`,
@@ -88,6 +103,44 @@ Ratio inference uses an **allowlist of ratios issuers actually declare**, not a
 bounds check. Vodafone's 5,000 -> 4,400 reduces to a tidy 22:25, which a "both
 terms under thirty" test accepts — and reading that as a split explains away a
 real 600-share hole.
+
+## Scale
+
+`scripts/scale.py` builds a book of any size across the three custodians and
+seeds a fixed set of ten breaks into it, manifest written before the run. It
+found three things and the slow one was the least interesting:
+
+- **A latent crash.** `_cites` summarised sources as `(+27 more)` — a figure the
+  prose layer worked out by subtraction, so the invented-figure guard rejected
+  it and stopped the pipeline. On the demo book no finding has more than three
+  distinct citations, so that branch had never executed. It now names the total,
+  which is a fact about the finding and the number a reviewer wants anyway.
+- **Two quadratics.** Three detectors filtered the whole movement list inside the
+  loop over positions; `_txns_by_isin` groups once. Worse was `in_flight_qty`,
+  asked once per instrument per mismatched-basis custodian pair; `in_flight_index`
+  walks each list once. 20,000 position lines: 8.5s -> 0.28s, curve now linear.
+- **The ranking**, above.
+
+`tests/test_scale.py` asserts complexity by **counting scans, not seconds** — a
+list subclass recording its own iteration, so the claim is a property of the
+algorithm rather than of the machine CI drew. The counter is itself tested
+against a deliberately quadratic scan; a counter that cannot count would make
+every one of those tests pass.
+
+The identifier scheme is `USSCALE00033` — ISIN-shaped, unmistakably not one, and
+it refuses past 9,999 instruments rather than colliding.
+
+## The diagram
+
+`docs/architecture.svg` is hand-authored, self-contained, and drawn for both
+themes. `tests/test_diagram.py` checks it against the code: detector count vs
+`len(RULES)`, rule names vs the published list, `+ nine more` vs the remainder,
+parsers and model classes vs the modules, custodians vs what `load_period`
+reads, and the four figures in its queue vs `breaks.json` by value and severity.
+The provenance example is verified by opening the statement and reading the line.
+
+Stale prose reads oddly and somebody fixes it. A stale picture keeps looking
+authoritative.
 
 ## Data
 
