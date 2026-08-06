@@ -60,14 +60,24 @@ def _exposure_by_ccy(found):
     )
 
 
-def build(statements_dir=None, out_path=None, now=None, writer=None, quiet=False):
-    # type: (str, str, datetime, object, bool) -> dict
-    """Run the pipeline and write the report. Returns the report as a dict."""
+def build(statements_dir=None, out_path=None, now=None, writer=None, quiet=False,
+          period=None):
+    # type: (str, str, datetime, object, bool, dict) -> dict
+    """
+    Run the pipeline and write the report. Returns the report as a dict.
+
+    `period` takes an already-loaded book in place of a directory, which is how
+    `scale.py` drives the pipeline over a book that was never written to disk.
+    Everything downstream of loading is identical either way — that is the claim
+    being made, and passing the loaded structure straight through is what keeps
+    it true rather than approximately true.
+    """
     statements_dir = statements_dir or STATEMENTS
     out_path = out_path or OUT
     now = now or datetime.now(timezone.utc)
 
-    period = normalize.load_period(statements_dir)
+    if period is None:
+        period = normalize.load_period(statements_dir)
     found = breaks.detect_all(period)
 
     fallbacks = []

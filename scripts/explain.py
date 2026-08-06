@@ -88,6 +88,16 @@ def permitted_numbers(brk):
     corpus.extend(str(k) for k in brk.detail.keys())
     corpus.extend(c.cite() for c in brk.citations)
     corpus.extend(c.excerpt for c in brk.citations)
+    # How many sources a finding has is a fact about the finding, computed here
+    # from the citation list, and prose is entitled to say it — `_cites` does,
+    # every time a break carries more sources than it prints. Without this the
+    # guard rejects its own templates, which is not a hypothetical: on the demo
+    # book no finding has more than three distinct citations, and on a real one
+    # a rollforward against a quarter of trading has dozens. The rule the guard
+    # enforces is unchanged — every figure in the prose must be one the desk
+    # computed — and the count of sources is one of them.
+    corpus.append(str(len(brk.citations)))
+    corpus.append(str(len(set(c.cite() for c in brk.citations))))
 
     allowed = set()
     for chunk in corpus:
@@ -121,13 +131,23 @@ def _d(brk, key, default="n/a"):
 
 def _cites(brk, limit=3):
     # type: (Break, int) -> str
+    """
+    The first few sources, and how many there are in total.
+
+    The total rather than the remainder, deliberately. `(+27 more)` is a figure
+    the prose layer worked out by subtraction, and the invented-figure guard is
+    right to reject a number that exists nowhere but in the sentence that prints
+    it. `30 sources in all` is a property of the finding — it is `len(citations)`
+    — and it is the number a reviewer wants anyway: how much evidence is behind
+    this, not how much of it was elided.
+    """
     seen = []
     for c in brk.citations:
         cite = c.cite()
         if cite not in seen:
             seen.append(cite)
     shown = seen[:limit]
-    tail = "" if len(seen) <= limit else " (+%d more)" % (len(seen) - limit)
+    tail = "" if len(seen) <= limit else " (%d sources in all)" % len(seen)
     return ", ".join(shown) + tail
 
 
