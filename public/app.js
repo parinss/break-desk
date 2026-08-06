@@ -79,9 +79,28 @@ function paintSeverity(node, severity) {
   node.style.setProperty('--sev-wash', 'var(--' + name + '-wash)');
 }
 
+/* Thousands separators applied to the digits, never by parsing the number.
+
+   Every figure in the report is a string on purpose — a Decimal that went
+   through JSON.parse would be a float, and this is a system that refuses floats
+   for money everywhere else. Reformatting via Number() to get grouping would
+   undo that at the last possible moment, in the one layer a client actually
+   reads. So the grouping is done on the characters. */
+function group(amount) {
+  var m = /^(-?)(\d+)(\.\d+)?$/.exec(String(amount));
+  if (!m) { return String(amount); }
+  return m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[3] || '');
+}
+
 function riskOf(brk) {
+  /* Most findings name their exposure `value_at_risk` in the detail, already
+     formatted by the desk. Account-level ones name it something truer to what
+     it is — `value_in_flight` — so the raw figure is the fallback, and it
+     arrives ungrouped. It showed as `USD 119450.00` in a queue whose other
+     rows read `USD 542,600.00`, which is the sort of thing only a screenshot
+     catches. */
   if (brk.detail && brk.detail.value_at_risk) { return brk.detail.value_at_risk; }
-  if (brk.value_at_risk) { return brk.value_ccy + ' ' + brk.value_at_risk; }
+  if (brk.value_at_risk) { return brk.value_ccy + ' ' + group(brk.value_at_risk); }
   return '—';
 }
 

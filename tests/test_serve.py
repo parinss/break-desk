@@ -264,3 +264,61 @@ class TestServerConstruction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestConsoleNeverParsesMoney(unittest.TestCase):
+    """
+    The console is the last layer between a Decimal and a client's eyes, and it
+    is the easiest place to throw the Decimal away.
+
+    Every figure crosses into the browser as a string, deliberately: JSON has no
+    decimal type, so a number literal would arrive as a float and undo the one
+    rule the rest of this system is built on. `app.js` therefore has to format
+    figures without ever parsing them, and this asserts it at the source rather
+    than trusting the comment that says so — the same shape as the purity grep
+    over corpactions.py.
+    """
+
+    def setUp(self):
+        path = os.path.join(_util.ROOT, "public", "app.js")
+        with io.open(path, encoding="utf-8") as fh:
+            self.source = fh.read()
+        # Comments explain why these calls are absent, so they must not be read
+        # as uses of them. Block comments in this file wrap without a leading
+        # star, so stripping line-by-line is not enough — and a grep that counts
+        # its own explanation as a violation is a grep that will be deleted.
+        import re
+
+        code = re.sub(r"/\*.*?\*/", "", self.source, flags=re.S)
+        self.code = "\n".join(
+            line for line in code.splitlines()
+            if not line.lstrip().startswith("//")
+        )
+
+    def test_the_comment_stripper_leaves_the_code(self):
+        """If this over-stripped, every assertion below would pass vacuously."""
+        self.assertIn("function riskOf(brk)", self.code)
+        self.assertIn("fetch('data/breaks.json'", self.code)
+        self.assertNotIn("No framework and no build step", self.code)
+
+    def test_no_float_parsing_anywhere_in_the_console(self):
+        for banned in ("parseFloat(", "toFixed(", "Number(", "parseInt("):
+            self.assertNotIn(
+                banned, self.code,
+                "public/app.js calls %s — money would stop being exact there"
+                % banned,
+            )
+
+    def test_the_raw_figure_is_grouped_before_it_is_shown(self):
+        """
+        Account-level findings name their exposure something truer than
+        `value_at_risk`, so the row falls back to the raw Decimal string. It
+        rendered as `USD 119450.00` beside rows reading `USD 542,600.00` until a
+        screenshot caught it.
+        """
+        self.assertIn("group(brk.value_at_risk)", self.code)
+        self.assertNotIn("' ' + brk.value_at_risk", self.code)
+
+    def test_grouping_is_done_on_the_digits(self):
+        self.assertIn("function group(amount)", self.code)
+        self.assertIn("replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',')", self.code)

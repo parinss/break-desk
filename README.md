@@ -1,5 +1,7 @@
 # Break Desk
 
+[![tests and deploy](https://github.com/parinss/break-desk/actions/workflows/pages.yml/badge.svg)](https://github.com/parinss/break-desk/actions/workflows/pages.yml)
+
 Multi-custodian position reconciliation for wealth managers. Three custodians,
 three statement formats — a US CSV, a Swiss PDF extract and ISO 15022 SWIFT —
 three number locales, one quarter, and every figure in the output traceable to a
@@ -8,18 +10,47 @@ file and a line number in a source document.
 **[Open the desk →](https://parinss.github.io/break-desk/)** — the live queue on
 the demo quarter. Pick any finding and it expands to the custodians' own lines.
 
+![The console: a queue of findings ranked worst first on the left, and on the
+right the selected finding — Tesla, USD 542,600 at risk — with its assessment,
+its proposed action, the computed figures behind it, and the two custodian
+statement lines it was derived from, quoted verbatim with their line
+numbers.](docs/console.png)
+
+Every figure on that screen is synthetic and reproducible: `generate.py` wrote
+the statements, `build.py` reconciled them, and both are committed.
+
 To run it yourself:
 
 ```
 python3 scripts/generate.py     # write the synthetic statements
 python3 scripts/build.py        # reconcile -> public/data/breaks.json
 python3 serve.py                # http://localhost:8110/desk/
+python3 scripts/scale.py        # the same pipeline over a 5,000-position book
 python3 -m unittest discover -s tests
 ```
 
 Python 3.9, standard library only. No dependencies, no build step, no
 `node_modules`. The optional prose layer uses the Anthropic SDK; without it the
 system produces complete reports from templates.
+
+---
+
+## The name
+
+A **break** is the industry's word for it: two records that are supposed to agree
+and do not. Not an error, not an exception — a break, because something that
+should have been joined has come apart, and somebody has to find where.
+
+A **desk** is where a job gets done all day by the people who own it. Asset
+managers have a trading desk and an operations desk; the reconciliations desk is
+where breaks land, get triaged, get chased with a custodian, and get closed.
+
+So the name is the workflow rather than the technology. This is not a
+reconciliation *engine* that emits a file — it is the thing an operations team
+would sit in front of on the first working day after quarter end, ordered the way
+they would want to work it, with the evidence attached to each row because the
+next step is always a phone call to a custodian who will ask what you are looking
+at.
 
 ---
 
@@ -46,6 +77,24 @@ On the demo period it reports **eleven findings across nine instruments**:
 
 Four instruments are examined and reported clean, and **that half matters more**.
 See "What it deliberately does not report" below.
+
+---
+
+## How it works
+
+![Architecture: three statement formats parse into one canonical model in which
+provenance is a required field; thirteen pure detectors compare that model
+against itself and against an independent corporate-action reference feed; the
+findings are ranked by severity band and then by value at risk; a language model
+writes two prose fields and can touch nothing else.](docs/architecture.svg)
+
+Three shapes fan in to one model, and the fan-in is the whole trick: every
+cross-custodian rule takes a sequence of snapshots and knows nothing about where
+they came from, so a fourth custodian is a parser and no more. The reference feed
+enters detection from outside the custodians on purpose, because a corporate
+action inferred from two custodians disagreeing is an explanation built out of
+the thing it is explaining. The language model hangs off the side rather than
+sitting in the pipe, because it is not in the path of any number.
 
 ---
 
@@ -198,6 +247,62 @@ ignore the queue.
 
 ---
 
+## Under load
+
+Nine instruments is a demo. `scripts/scale.py` builds a synthetic book of any
+size across the same three custodians, seeds a fixed set of ten breaks into it,
+and runs the real pipeline — same detectors, same prose layer, same report.
+
+```
+$ python3 scripts/scale.py --positions 20000
+book        6666 instruments, 19997 position lines, 20669 movements
+detect        0.28s
+pipeline      0.43s   (detect + prose + report + 645 kB)
+findings    11, manifest matched
+```
+
+It found three things, and the slow one was the least interesting.
+
+**A latent crash, on the first run.** The prose templates summarise citations and
+used to end `(+27 more)` — a figure the prose layer worked out by subtraction, so
+the invented-figure guard rejected it and stopped the pipeline. On the demo book
+no finding ever has more than three distinct citations, so that branch had never
+once executed. A real book hits it on the first rollforward against a quarter of
+trading. The guard was right and the template was wrong.
+
+**Two quadratics.** Three detectors filtered the whole movement list inside the
+loop over positions — O(positions × movements), the natural way to write it, and
+invisible at nine instruments. The expensive one was worse: every pair of
+custodians on different statement bases asked "what is in flight in this
+security?" once per instrument, and answered it by walking every movement the
+custodian had reported.
+
+| Position lines | Before | After |
+|---|---|---|
+| 5,000 | 0.39 s | 0.04 s |
+| 10,000 | 2.24 s | 0.10 s |
+| 20,000 | 8.47 s | 0.28 s |
+
+**A queue that had stopped meaning anything.** This is the one that mattered.
+Severity is a band and a band is coarse on purpose — everything above a hundred
+thousand is critical. Inside the band the sort key was the rule's *name*, so the
+largest exposure in the book landed wherever its rule happened to fall in the
+alphabet. On eleven findings that is cosmetic. On a real book the critical band
+alone runs to dozens of rows and an operations team works a queue from the top.
+
+Exposure now orders within the band, and the demo report reads better for it: the
+merger and the cross-custodian disagreement it causes now sit adjacent at the top
+on the same figure, which is one error seen through two windows rather than two
+separate pieces of work.
+
+The complexity claims are asserted by **counting scans, not seconds** — a list
+subclass that records its own iteration, so the test states a property of the
+algorithm rather than a property of the machine CI happened to run on. A test
+that fails when the box is busy teaches people to re-run it, and a test people
+re-run until it passes is not a test.
+
+---
+
 ## Design decisions
 
 **Decimal everywhere, never float.** `0.1 + 0.2` is not `0.3`, and an engine that
@@ -221,6 +326,13 @@ have confidence in its silence.
 question is never "what did you find" — it is "what did you look for, and what
 did you clear". A findings list with neither cannot be falsified.
 
+**Even the diagram is tested.** `docs/architecture.svg` names modules, functions,
+rules and figures, so `tests/test_diagram.py` checks each of them against the
+code and against the report the pipeline produces — the four amounts in its queue
+are compared to `breaks.json` by value and by severity, and its provenance
+example is verified by opening the statement and reading the line. Stale prose
+reads oddly and gets fixed; a stale picture keeps looking authoritative.
+
 ---
 
 ## The data is synthetic, and you can check that
@@ -238,13 +350,19 @@ with German activity codes and columns held apart by runs of spaces; and ISO
 comma is mandatory, thousands separators are forbidden, and `1,800` means one
 point eight.
 
+The same discipline applies to the large book. `scripts/scale.py` invents
+identifiers of the form `USSCALE00033` — ISIN-shaped, and unmistakably not one —
+for the same reason the demo's SpaceX ISIN is deliberately absurd: an invented
+identifier that could be confused with a real instrument is a liability in a
+repository anyone can clone.
+
 ---
 
 ## Layout
 
 ```
 scripts/
-  money.py         parsing and Decimal arithmetic across two locales
+  money.py         parsing and Decimal arithmetic across three locales
   model.py         canonical model; Provenance is a required field
   securities.py    ISIN / CUSIP / ticker crosswalk, including former tickers
   normalize.py     custodian statements in, canonical model out
@@ -252,17 +370,19 @@ scripts/
   breaks.py        thirteen pure detectors
   explain.py       prose layer, with the containment enforced at runtime
   generate.py      synthetic statements + the manifest of seeded errors
+  scale.py         the same pipeline over a book of any size, and its manifest
   build.py         the pipeline
 serve.py           stdlib server on :8110/desk
 public/            two-pane console, no framework and no build step
-tests/             343 tests, stdlib unittest
+docs/              architecture diagram, checked against the code by the suite
+tests/             397 tests, stdlib unittest
 ```
 
 ## Tests
 
 ```
 $ python3 -m unittest discover -s tests
-Ran 343 tests in 3.2s
+Ran 397 tests in 4.3s
 OK
 ```
 
@@ -273,6 +393,7 @@ a line that says what it claims, that the output is byte-identical run to run,
 and that a hostile language model degrades the prose and nothing else.
 `tests/test_serve.py` speaks HTTP over a real socket, including a symlink that
 escapes the document root without a `..` anywhere in the request.
+`tests/test_scale.py` holds all of it to a book of five thousand positions.
 
 ---
 

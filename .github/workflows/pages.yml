@@ -1,4 +1,4 @@
-name: Pages
+name: tests and deploy
 
 # The desk is a static frontend over a committed report — app.js fetches
 # data/breaks.json on a relative path — so public/ is the whole site and no
