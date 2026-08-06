@@ -121,11 +121,63 @@ def _name(isin):
 
 def _sorted(brks):
     # type: (List[Break]) -> List[Break]
-    """Deterministic order: worst first, then stable by kind/isin/custodian."""
+    """
+    Queue order: worst band first, largest exposure first inside it, then stable
+    by kind/isin/custodian.
+
+    The exposure term is not cosmetic. Severity is a band, and a band is coarse
+    on purpose — everything above a hundred thousand is critical, whether it is
+    a hundred and one thousand or four hundred and fifty. On the demo's eleven
+    findings the band is the whole answer. On a real book the critical band alone
+    runs to dozens of rows, and an operations team works a queue from the top;
+    without this term the largest exposure in the book lands wherever its rule's
+    name falls in the alphabet. `scripts/scale.py` is where that stopped being a
+    hypothetical.
+
+    Findings the desk could not price sort last within their band rather than
+    first: an unpriced finding is not a small one, but it is one a reviewer
+    cannot triage by size, and putting it above figures they can would be
+    guessing on their behalf.
+
+    Magnitudes are compared without conversion, across currencies. That is worth
+    naming rather than hiding: it is exactly as currency-blind as `severity_for`,
+    which bands a EUR figure against the same thresholds, and this ordering only
+    refines those bands. A deployment holding materially mixed currencies should
+    convert to the account's base before both — one rate, applied in one place.
+    """
     from model import SEVERITY_ORDER
 
     rank = dict((s, i) for i, s in enumerate(SEVERITY_ORDER))
-    return sorted(brks, key=lambda b: (rank.get(b.severity, 99), b.kind, b.isin, b.custodian))
+    return sorted(
+        brks,
+        key=lambda b: (
+            rank.get(b.severity, 99),
+            -abs(b.value_at_risk) if b.value_at_risk is not None else ZERO,
+            b.kind,
+            b.isin,
+            b.custodian,
+        ),
+    )
+
+
+def _txns_by_isin(txns):
+    # type: (Sequence[Transaction]) -> Dict[str, List[Transaction]]
+    """
+    Group a custodian's movements by instrument, once.
+
+    Every rule below wants "the movements in this security", and the natural way
+    to write that is a filter over the whole list inside the loop over positions
+    — which is O(positions x movements) and invisible on a nine-instrument book.
+    At twenty thousand position lines it was the difference between eight seconds
+    and a fifth of one.
+
+    Built inside each detector from that detector's own arguments, so the rules
+    stay pure and their signatures stay unchanged.
+    """
+    index = {}  # type: Dict[str, List[Transaction]]
+    for txn in txns:
+        index.setdefault(txn.isin, []).append(txn)
+    return index
 
 
 # --- 1. quantity rollforward -------------------------------------------------
@@ -145,13 +197,14 @@ def detect_qty_rollforward(prior, current, txns):
     out = []
     prior_by = prior.by_isin()
     current_by = current.by_isin()
+    by_isin = _txns_by_isin(txns)
 
     for isin, cur in sorted(current_by.items()):
         pri = prior_by.get(isin)
         if pri is None:
             continue
 
-        deltas = [t for t in txns if t.isin == isin and t.quantity != ZERO]
+        deltas = [t for t in by_isin.get(isin, []) if t.quantity != ZERO]
         moved = sum((t.quantity for t in deltas), ZERO)
         expected = q_qty(pri.quantity + moved)
         actual = q_qty(cur.quantity)
@@ -200,11 +253,12 @@ def detect_position_disappeared(prior, current, txns):
     """
     out = []
     current_by = current.by_isin()
+    by_isin = _txns_by_isin(txns)
 
     for isin, pri in sorted(prior.by_isin().items()):
         if isin in current_by:
             continue
-        deltas = [t for t in txns if t.isin == isin and t.quantity != ZERO]
+        deltas = [t for t in by_isin.get(isin, []) if t.quantity != ZERO]
         moved = sum((t.quantity for t in deltas), ZERO)
         residual = q_qty(pri.quantity + moved)
         if abs(residual) <= QTY_TOLERANCE:
@@ -567,13 +621,14 @@ def detect_cost_basis_drift(prior, current, txns):
     """
     out = []
     prior_by = prior.by_isin()
+    by_isin = _txns_by_isin(txns)
 
     for isin, cur in sorted(current.by_isin().items()):
         pri = prior_by.get(isin)
         if pri is None or pri.cost_basis is None or cur.cost_basis is None:
             continue
 
-        relevant = [t for t in txns if t.isin == isin]
+        relevant = by_isin.get(isin, [])
         expected = roll_cost_basis(pri.quantity, pri.cost_basis, relevant)
         reported = q_money(cur.cost_basis)
         drift = q_money(reported - expected)
@@ -627,8 +682,35 @@ def in_flight_qty(txns, isin, as_of):
     return total
 
 
-def _basis_expected_gap(a, b, txns_by_custodian):
-    # type: (tuple, tuple, Dict[str, Sequence[Transaction]]) -> Decimal
+def in_flight_index(txns_by_custodian, as_of_dates):
+    # type: (Dict[str, Sequence[Transaction]], Sequence[object]) -> Dict[tuple, Decimal]
+    """
+    `in_flight_qty` for every instrument at once, keyed `(custodian, as_of, isin)`.
+
+    Same answer as calling `in_flight_qty` per instrument, arrived at by walking
+    each movement list once instead of once per instrument. The distinction is
+    the whole cost of this rule at scale: every pair of custodians on different
+    bases asks the question for every instrument they share, so the per-call form
+    is O(instruments x movements) and this is O(dates x movements) with dates
+    being the two or three statement dates in the period.
+
+    `tests/test_breaks.py` holds the two forms to the same answers rather than
+    trusting the reasoning above, because a faster path that quietly disagrees
+    with the slow one is worse than the slow one.
+    """
+    index = {}  # type: Dict[tuple, Decimal]
+    for custodian in sorted(txns_by_custodian):
+        for txn in txns_by_custodian[custodian]:
+            for as_of in as_of_dates:
+                if not txn.in_flight_at(as_of):
+                    continue
+                key = (custodian, as_of, txn.isin)
+                index[key] = index.get(key, ZERO) + txn.quantity
+    return index
+
+
+def _basis_expected_gap(a, b, flight):
+    # type: (tuple, tuple, Dict[tuple, Decimal]) -> Decimal
     """
     How far apart two holdings *should* be, given the statements' bases.
 
@@ -645,8 +727,8 @@ def _basis_expected_gap(a, b, txns_by_custodian):
     # date basis — the settled-basis custodian will not book them until they
     # settle, in a period that has not closed yet.
     if basis_a == BASIS_TRADE:
-        return in_flight_qty(txns_by_custodian.get(name_a, []), pos_a.isin, pos_a.as_of)
-    return -in_flight_qty(txns_by_custodian.get(name_b, []), pos_b.isin, pos_b.as_of)
+        return flight.get((name_a, pos_a.as_of, pos_a.isin), ZERO)
+    return -flight.get((name_b, pos_b.as_of, pos_b.isin), ZERO)
 
 
 def detect_cross_custodian_qty(snapshots, txns_by_custodian=None):
@@ -680,9 +762,17 @@ def detect_cross_custodian_qty(snapshots, txns_by_custodian=None):
     # and then it would silently compare two trade-date books as though both were
     # settled. Carrying it is one word longer and cannot drift.
     index = {}  # type: Dict[str, List[tuple]]
+    dates = set()
     for snap in snapshots:
+        dates.add(snap.as_of)
         for pos in snap.positions:
             index.setdefault(pos.isin, []).append((pos, snap.basis, snap.custodian))
+            dates.add(pos.as_of)
+    # A position's own as_of rather than its snapshot's, for the same reason the
+    # basis travels with the holding above: in this pipeline they are always the
+    # same, and an index keyed on an assumption is an index that is wrong exactly
+    # once, silently, on the day the assumption stops holding.
+    flight = in_flight_index(txns_by_custodian, sorted(dates))
 
     for isin, holdings in sorted(index.items()):
         if len(holdings) < 2:
@@ -693,7 +783,7 @@ def detect_cross_custodian_qty(snapshots, txns_by_custodian=None):
                 side_a, side_b = holdings[i], holdings[j]
                 (a, basis_a, name_a), (b, basis_b, name_b) = side_a, side_b
                 raw_gap = q_qty(a.quantity - b.quantity)
-                expected = q_qty(_basis_expected_gap(side_a, side_b, txns_by_custodian))
+                expected = q_qty(_basis_expected_gap(side_a, side_b, flight))
                 gap = q_qty(raw_gap - expected)
                 if abs(gap) <= QTY_TOLERANCE:
                     continue
