@@ -375,14 +375,15 @@ scripts/
 serve.py           stdlib server on :8110/desk
 public/            two-pane console, no framework and no build step
 docs/              architecture diagram, checked against the code by the suite
-tests/             397 tests, stdlib unittest
+tests/             401 tests, stdlib unittest
+LICENSE            Apache-2.0
 ```
 
 ## Tests
 
 ```
 $ python3 -m unittest discover -s tests
-Ran 397 tests in 4.3s
+Ran 401 tests in 4.1s
 OK
 ```
 
@@ -397,9 +398,20 @@ escapes the document root without a `..` anywhere in the request.
 
 ---
 
+## License
+
+Apache-2.0. Take the detectors, take the parsers, take the provenance model —
+the ISO 15022 refusals in `normalize.py` are the part most worth stealing, and
+they cost a fortnight to get right. Apache rather than MIT for the explicit
+patent grant, so nobody has to wonder.
+
+The statements under `data/` are synthetic and carry no rights worth asserting.
+
+---
+
 ## Who wrote this
 
-Parin Shah — Engineering Manager, Market Data at Addepar (2022–2026), running the
+Parin Shah — Engineering Manager, Reference Data at Addepar (2022–2026), running the
 team behind the security master, the identifier crosswalk, and the
 corporate-action and pricing feeds under a wealth-management platform, across 20+
 vendors.
