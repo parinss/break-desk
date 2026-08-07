@@ -411,16 +411,16 @@ The statements under `data/` are synthetic and carry no rights worth asserting.
 
 ## Who wrote this
 
-Parin Shah — Engineering Manager, Reference Data at Addepar (2022–2026), running the
-team behind the security master, the identifier crosswalk, and the
-corporate-action and pricing feeds under a wealth-management platform, across 20+
-vendors.
+Parin Shah — Engineering Lead, Reference Data at Addepar (2022–2026), running
+the team behind the security master, the identifier crosswalk, and the
+corporate-action and pricing feeds under a wealth-management platform, across
+20+ vendors.
 
-That is the half of this repository I did not have to look up. The reference-data
-reasoning here — CUSIP beating ticker when the two disagree, former tickers that
-still have to resolve, an independent corporate-action record rather than an
-inference from the custodians' own disagreement — is the failure mode I spent
-four years watching. The desk workflow layered on top of it is modelled, not
-lived.
+The reference-data reasoning in here is the part I did not have to look up.
+CUSIP beating ticker when the two disagree, former tickers that still have to
+resolve, an independent corporate-action record rather than an inference from
+the custodians' own disagreement — each of those is a rule written against a
+particular way I watched the data go wrong. The desk workflow layered on top of
+it is modelled, not lived.
 
 parin.sunil.shah@gmail.com
